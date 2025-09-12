@@ -1,0 +1,17 @@
+Navigate to https://demo.opencart.com
+Verify the OpenCart demo store loads successfully
+Click on the 'Desktops' menu in the top navigation
+Select 'Mac' from the dropdown menu
+Click on the first Mac product to view details
+Verify the product page shows price and description
+Click 'Add to Cart' button
+Verify 'Success: You have added' message appears
+Click on the shopping cart icon in the top right
+Verify cart shows the added product
+Click 'Checkout' button
+Verify the checkout page loads
+Fill in 'John' in the first name field
+Fill in 'Doe' in the last name field
+Fill in 'john.doe@example.com' in the email field
+Wait 2 seconds
+Verify all form fields are filled correctly

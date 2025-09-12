@@ -1,0 +1,12 @@
+Navigate to https://aihub-uat.internal.instabase.com/
+Verify that the AIHub homepage loads successfully
+Click on workspaces
+Verify that workspaces page loads successfully
+Verify that page has left panel with workspaces list
+Click on My workspace
+Verify that My-Workspace gets loaded successfully
+Verify that under My-Workspace selection 4 options are visible
+Verify that create option is selected by default
+Verify that right side has create button with dropdown
+Click on chatbot
+Verify that it loads a new chatbot page

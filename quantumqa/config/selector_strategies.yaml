@@ -1,0 +1,173 @@
+# Selector Strategies Configuration
+# Defines how to find elements using various strategies
+
+# Text-based matching strategies
+text_matching:
+  exact_text:
+    pattern: "text='{target}'"
+    priority: 1
+    description: "Exact text match"
+  
+  partial_text:
+    pattern: "text*='{target}'"
+    priority: 2
+    description: "Partial text match"
+  
+  case_insensitive:
+    pattern: "*:has-text('{target}') >> visible=true"
+    priority: 3
+    description: "Case insensitive text search"
+
+# Element type specific strategies
+button_matching:
+  button_text:
+    pattern: "button:has-text('{target}')"
+    priority: 1
+    description: "Button with specific text"
+  
+  button_role:
+    pattern: "[role='button']:has-text('{target}')"
+    priority: 2
+    description: "Element with button role"
+  
+  input_button:
+    pattern: "input[type='button'][value*='{target}']"
+    priority: 3
+    description: "Input button with value"
+
+link_matching:
+  link_text:
+    pattern: "a:has-text('{target}')"
+    priority: 1
+    description: "Link with specific text"
+  
+  link_href:
+    pattern: "a[href*='{target}']"
+    priority: 2
+    description: "Link with href containing target"
+
+# Dropdown and menu strategies
+dropdown_matching:
+  menuitem:
+    pattern: "[role='menuitem']:has-text('{target}')"
+    priority: 1
+    description: "Menu item with text"
+  
+  option:
+    pattern: "[role='option']:has-text('{target}')"
+    priority: 2
+    description: "Option with text"
+  
+  select_option:
+    pattern: "select option:has-text('{target}')"
+    priority: 3
+    description: "Select option with text"
+  
+  menu_child:
+    pattern: "[role='menu'] *:has-text('{target}')"
+    priority: 4
+    description: "Any element in menu with text"
+
+# Attribute-based strategies
+attribute_matching:
+  aria_label:
+    pattern: "[aria-label*='{target}' i]"
+    priority: 1
+    description: "Element with aria-label"
+  
+  title_attr:
+    pattern: "[title*='{target}' i]"
+    priority: 2
+    description: "Element with title attribute"
+  
+  data_testid:
+    pattern: "[data-testid*='{target_normalized}']"
+    priority: 3
+    description: "Element with test ID"
+    preprocessing:
+      target_normalized: "target.lower().replace(' ', '-')"
+  
+  placeholder:
+    pattern: "[placeholder*='{target}' i]"
+    priority: 4
+    description: "Input with placeholder"
+
+# Form field strategies  
+field_matching:
+  email_field:
+    pattern: "input[type='email']"
+    priority: 1
+    description: "Email input field"
+    conditions:
+      - "email in target.lower()"
+  
+  password_field:
+    pattern: "input[type='password']"
+    priority: 1
+    description: "Password input field"
+    conditions:
+      - "password in target.lower()"
+  
+  text_field:
+    pattern: "input[type='text']"
+    priority: 2
+    description: "Text input field"
+  
+  textarea:
+    pattern: "textarea"
+    priority: 3
+    description: "Textarea field"
+
+# Context-aware strategies
+contextual_matching:
+  color_button:
+    pattern: "button[class*='{color}']:has-text('{target}')"
+    priority: 1
+    description: "Colored button"
+    requires_context: ["color"]
+  
+  positioned_element:
+    pattern: "[class*='{position}'] *:has-text('{target}')"
+    priority: 2
+    description: "Positioned element"
+    requires_context: ["position"]
+  
+  dropdown_item:
+    pattern: "[role='menuitem']:has-text('{target}')"
+    priority: 1
+    description: "Dropdown menu item"
+    requires_context: ["parent_type=dropdown"]
+
+# Fallback strategies (lowest priority)
+fallback_matching:
+  generic_text:
+    pattern: "*:has-text('{target}')"
+    priority: 20
+    description: "Any element with text"
+  
+  generic_clickable:
+    pattern: "button, a, [role='button'], [onclick]"
+    priority: 25
+    description: "Any clickable element"
+    text_filter: true
+
+# Input field specific strategies
+input_field_strategies:
+  by_type:
+    email: "input[type='email']"
+    password: "input[type='password']"
+    text: "input[type='text']"
+    search: "input[type='search']"
+  
+  by_name:
+    pattern: "input[name*='{field_name}']"
+    preprocessing:
+      field_name: "target.lower().replace(' field', '').replace(' ', '')"
+  
+  by_placeholder:
+    pattern: "input[placeholder*='{target}' i], textarea[placeholder*='{target}' i]"
+  
+  by_label:
+    adjacent: "label:has-text('{target}') + input"
+    nested: "label:has-text('{target}') input"
+    aria: "input[aria-labelledby*='{target}']"

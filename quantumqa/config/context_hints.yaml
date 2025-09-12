@@ -1,0 +1,23 @@
+action_modifiers:
+- force
+- double
+- right
+color_keywords:
+- purple
+- blue
+- red
+- green
+- yellow
+element_types:
+- button
+- link
+- dropdown
+- tab
+- input
+- field
+position_keywords:
+- top
+- bottom
+- left
+- right
+- center

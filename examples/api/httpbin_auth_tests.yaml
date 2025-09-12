@@ -1,0 +1,146 @@
+# HTTPBin API Test Suite
+# HTTP testing service with authentication examples
+# Documentation: https://httpbin.org/
+
+name: "HTTPBin Authentication Tests"
+description: "Test suite demonstrating various authentication methods"
+base_url: "https://httpbin.org"
+
+global_headers:
+  User-Agent: "QuantumQA-API-Tester/1.0"
+  Accept: "application/json"
+
+endpoints:
+  # Test 1: Simple GET request (no auth)
+  - name: "Simple GET Request"
+    description: "Basic GET request to test connectivity"
+    method: "GET"
+    url: "/get"
+    expected_status: 200
+    required_response_fields:
+      - "args"
+      - "headers"
+      - "origin"
+      - "url"
+    field_types:
+      args: "dict"
+      headers: "dict"
+      origin: "string"
+      url: "string"
+
+  # Test 2: POST with JSON payload
+  - name: "POST JSON Data"
+    description: "POST request with JSON payload"
+    method: "POST"
+    url: "/post"
+    payload:
+      name: "QuantumQA Test"
+      type: "API Testing"
+      version: "1.0"
+      active: true
+      count: 42
+    expected_status: 200
+    required_response_fields:
+      - "json"
+      - "json.name"
+      - "json.type"
+      - "json.active"
+      - "json.count"
+    field_types:
+      "json.name": "string"
+      "json.type": "string" 
+      "json.active": "bool"
+      "json.count": "int"
+
+  # Test 3: Basic Auth (will use httpbin credentials)
+  - name: "Basic Authentication Test"
+    description: "Test HTTP Basic Authentication"
+    method: "GET"
+    url: "/basic-auth/test_user/test_password"
+    auth_credential: "httpbin"  # References httpbin section in credentials.yaml
+    expected_status: 200
+    expected_response:
+      authenticated: true
+      user: "test_user"
+
+  # Test 4: Bearer Token Test (simulated)
+  - name: "Bearer Token Test"  
+    description: "Test Bearer token authentication"
+    method: "GET"
+    url: "/bearer"
+    auth_credential: "jsonplaceholder.token"  # References nested credential
+    expected_status: 200
+    required_response_fields:
+      - "authenticated"
+      - "token"
+    field_types:
+      authenticated: "bool"
+      token: "string"
+
+  # Test 5: Custom Headers Test
+  - name: "Custom Headers Test"
+    description: "Test with custom headers"
+    method: "GET" 
+    url: "/headers"
+    headers:
+      X-Custom-Header: "QuantumQA-Test-Value"
+      X-Test-ID: "api-test-123"
+    expected_status: 200
+    required_response_fields:
+      - "headers"
+      - "headers.X-Custom-Header"
+      - "headers.X-Test-Id"
+
+  # Test 6: Status Code Test (200)
+  - name: "Status 200 Test"
+    description: "Test endpoint that returns 200"
+    method: "GET"
+    url: "/status/200"
+    expected_status: 200
+
+  # Test 7: Status Code Test (404) 
+  - name: "Status 404 Test"
+    description: "Test endpoint that returns 404"
+    method: "GET"
+    url: "/status/404"
+    expected_status: 404
+
+  # Test 8: Multiple Status Codes Test
+  - name: "Multiple Status Codes Test"
+    description: "Test endpoint that can return different status codes"
+    method: "GET"
+    url: "/status/201"
+    expected_status: [200, 201, 202]  # Accept multiple status codes
+
+  # Test 9: Delay Test (with timeout)
+  - name: "Delay Test"
+    description: "Test endpoint with delay"
+    method: "GET"
+    url: "/delay/2"  # 2 second delay
+    timeout: 5  # 5 second timeout
+    expected_status: 200
+    required_response_fields:
+      - "args"
+      - "headers"
+      - "origin"
+      - "url"
+
+  # Test 10: PUT Request Test
+  - name: "PUT Request Test"
+    description: "Test PUT request with data"
+    method: "PUT"
+    url: "/put"
+    payload:
+      id: 123
+      name: "Updated Resource"
+      status: "active"
+    expected_status: 200
+    required_response_fields:
+      - "json"
+      - "json.id"
+      - "json.name"
+      - "json.status"
+    field_types:
+      "json.id": "int"
+      "json.name": "string"
+      "json.status": "string"

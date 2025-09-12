@@ -1,0 +1,4 @@
+Navigate to https://example.com
+Verify the page title contains 'Example'
+Click the 'More information...' link
+Verify the page loads successfully

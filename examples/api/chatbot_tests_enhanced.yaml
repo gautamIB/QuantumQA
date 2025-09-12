@@ -1,0 +1,136 @@
+# Chatbot API Test Suite - Enhanced Version
+# Chatbot API testing service with comprehensive validation
+# Documentation: https://aihub-uat.internal.instabase.com/
+
+name: "Chatbot API Tests - Enhanced"
+description: "Comprehensive test suite for chatbot API methods with robust validation"
+base_url: "https://aihub-uat.internal.instabase.com"
+
+# Global headers applied to all requests
+global_headers:
+  User-Agent: "QuantumQA-API-Tester/1.0"
+  Accept: "application/json"
+  Content-Type: "application/json"
+  ib-context: "chatbot-test"
+  Authorization: "Bearer {cred:aihub.token}"  # ✨ Consistent quoting
+
+# Global authentication reference (alternative to header-based auth)
+global_auth: "aihub.token"
+
+endpoints:
+  # Test 1: Chatbot Creation
+  - name: "Create New Chatbot"
+    description: "Create a new chatbot instance with repository ID"
+    method: "POST"
+    url: "/api/v2/chatbots"
+    timeout: 30  # ✨ Explicit timeout
+    payload:
+      repo_id: "e4a817cc-8f8a-4cb5-ae4d-81fa3edccf9f"
+      name: "Test Chatbot"  # ✨ Additional fields
+      description: "Created by QuantumQA API testing"
+    expected_status: 201
+    required_response_fields:
+      - "chatbot_id"
+      - "name"
+      - "status"
+    optional_response_fields:  # ✨ Optional field validation
+      - "created_at"
+      - "updated_at"
+      - "repo_id"
+    field_types:
+      chatbot_id: "string"
+      name: "string"
+      status: "string"
+      created_at: "string"
+      repo_id: "string"
+
+  # Test 2: Get Chatbot Details
+  - name: "Get Chatbot Details"
+    description: "Retrieve detailed information about a specific chatbot"
+    method: "GET"
+    url: "/api/v2/chatbots/cbb1f2ff-e5c6-41a9-a4f1-129aa19972d4"
+    timeout: 15  # ✨ Shorter timeout for GET
+    expected_status: 200
+    required_response_fields:
+      - "solution"
+      - "solution.id"
+      - "solution.name"
+      - "solution.owner"
+      - "solution.description"
+    optional_response_fields:  # ✨ Optional nested fields
+      - "solution.contextAccount"
+      - "solution.version"
+      - "solution.visibility"
+      - "solution.metadata"
+      - "solution.solutionType"
+      - "solution.createdAtMs"
+      - "solution.updatedAtMs"
+    field_types:
+      "solution": "dict"
+      "solution.id": "string"
+      "solution.name": "string"
+      "solution.owner": "string"
+      "solution.description": "string"
+      "solution.contextAccount": "string"
+      "solution.version": "string"
+      "solution.visibility": "string"
+      "solution.metadata": "string"
+      "solution.solutionType": "string"
+      "solution.createdAtMs": "string"
+      "solution.updatedAtMs": "string"
+
+  # Test 3: List All Chatbots (Additional test)
+  - name: "List All Chatbots"
+    description: "Retrieve list of all available chatbots"
+    method: "GET"
+    url: "/api/v2/chatbots"
+    timeout: 20
+    expected_status: [200, 201]  # ✨ Multiple acceptable status codes
+    required_response_fields:
+      - "[0].id"  # ✨ Array validation
+      - "[0].name"
+    optional_response_fields:
+      - "[0].status"
+      - "[0].created_at"
+    field_types:
+      "[0].id": "string"
+      "[0].name": "string"
+      "[0].status": "string"
+
+  # Test 4: Update Chatbot (PUT operation)
+  - name: "Update Chatbot"
+    description: "Update existing chatbot configuration"
+    method: "PUT"
+    url: "/api/v2/chatbots/cbb1f2ff-e5c6-41a9-a4f1-129aa19972d4"
+    timeout: 30
+    payload:
+      name: "Updated Test Chatbot"
+      description: "Updated via QuantumQA API testing"
+      status: "active"
+    expected_status: 200
+    required_response_fields:
+      - "chatbot_id"
+      - "name"
+      - "description"
+      - "status"
+    field_types:
+      chatbot_id: "string"
+      name: "string" 
+      description: "string"
+      status: "string"
+
+  # Test 5: Delete Chatbot
+  - name: "Delete Chatbot"
+    description: "Delete a specific chatbot instance"
+    method: "DELETE"
+    url: "/api/v2/chatbots/test-chatbot-to-delete"
+    timeout: 15
+    expected_status: [200, 204, 404]  # ✨ Accept multiple statuses (404 if already deleted)
+
+  # Test 6: Error Handling Test
+  - name: "Test Invalid Endpoint"
+    description: "Test API error handling with invalid endpoint"
+    method: "GET"
+    url: "/api/v2/invalid-endpoint"
+    timeout: 10
+    expected_status: [404, 405]  # ✨ Expected error status

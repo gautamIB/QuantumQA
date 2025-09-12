@@ -1,0 +1,16 @@
+Navigate to https://aihub-uat.internal.instabase.com/
+Verify the AIHub homepage loads successfully
+Click on Sign in Button from top right panel
+Veify that the pop up window has the field to enter user email address.
+Enter the email address as 'gautam.kumar@instabase.com' and click continue button
+In the password field enter the password as 'Kanika@3254' and click on login
+Click on the 'workspaces' tab from the top panel of the page
+Verify that workspaces page loads successfully
+Verify that page has left panel with the list of the workspaces available to the user
+Click on 'My workspace' option from the left panel
+Verify that My-Workspace gets loaded successfully
+Verify that under My-Workspace selection, 4 options are exposed namely ['create', 'Deploy', 'Review', 'Data'] 
+Verify that 'create' option is selected by default and center page has listed all the chatbots, conversation and project created by the user
+Verify that right side of the page has 'create' button with blue color with the dropdown of ['App', 'Conversation', 'Chatbot']
+Click on the 'chatbot' option from the dropdown
+Verify that it successfully loads a new blank page of newly created chatbot

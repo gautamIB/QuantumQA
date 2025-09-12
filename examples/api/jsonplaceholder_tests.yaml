@@ -1,0 +1,146 @@
+# JSONPlaceholder API Test Suite
+# Public REST API for testing and prototyping
+# Documentation: https://jsonplaceholder.typicode.com/
+
+name: "JSONPlaceholder API Tests"
+description: "Test suite for JSONPlaceholder public REST API"
+base_url: "https://jsonplaceholder.typicode.com"
+
+# Global headers applied to all requests
+global_headers:
+  Content-Type: "application/json"
+  User-Agent: "QuantumQA-API-Tester/1.0"
+
+# No global auth needed for JSONPlaceholder (public API)
+global_auth: null
+
+endpoints:
+  # Test 1: GET All Posts
+  - name: "Get All Posts"
+    description: "Retrieve all posts from the API"
+    method: "GET"
+    url: "/posts"
+    expected_status: 200
+    required_response_fields:
+      - "[0].id"
+      - "[0].title"  
+      - "[0].body"
+      - "[0].userId"
+    field_types:
+      "[0].id": "int"
+      "[0].title": "string"
+      "[0].body": "string" 
+      "[0].userId": "int"
+
+  # Test 2: GET Specific Post
+  - name: "Get Post by ID"
+    description: "Retrieve a specific post by ID"
+    method: "GET"
+    url: "/posts/1"
+    expected_status: 200
+    expected_response:
+      id: 1
+      userId: 1
+    required_response_fields:
+      - "id"
+      - "title"
+      - "body"
+      - "userId"
+    field_types:
+      id: "int"
+      title: "string"
+      body: "string"
+      userId: "int"
+
+  # Test 3: CREATE New Post
+  - name: "Create New Post"
+    description: "Create a new post via POST request"
+    method: "POST"
+    url: "/posts"
+    payload:
+      title: "QuantumQA Test Post"
+      body: "This is a test post created by QuantumQA API testing framework"
+      userId: 1
+    expected_status: 201
+    required_response_fields:
+      - "id"
+      - "title"
+      - "body"
+      - "userId"
+    field_types:
+      id: "int"
+      title: "string"
+      body: "string"
+      userId: "int"
+
+  # Test 4: UPDATE Post
+  - name: "Update Existing Post"
+    description: "Update an existing post via PUT request"
+    method: "PUT"
+    url: "/posts/1"
+    payload:
+      id: 1
+      title: "Updated Post Title"
+      body: "This post has been updated by QuantumQA"
+      userId: 1
+    expected_status: 200
+    expected_response:
+      id: 1
+      title: "Updated Post Title"
+      body: "This post has been updated by QuantumQA"
+      userId: 1
+
+  # Test 5: DELETE Post
+  - name: "Delete Post"
+    description: "Delete a post via DELETE request"
+    method: "DELETE"
+    url: "/posts/1"
+    expected_status: 200
+
+  # Test 6: GET Comments for Post
+  - name: "Get Post Comments"
+    description: "Retrieve comments for a specific post"
+    method: "GET"
+    url: "/posts/1/comments"
+    expected_status: 200
+    required_response_fields:
+      - "[0].id"
+      - "[0].postId"
+      - "[0].name"
+      - "[0].email"
+      - "[0].body"
+    field_types:
+      "[0].id": "int"
+      "[0].postId": "int"
+      "[0].name": "string"
+      "[0].email": "string"
+      "[0].body": "string"
+
+  # Test 7: GET Users
+  - name: "Get All Users"
+    description: "Retrieve all users from the API"
+    method: "GET"
+    url: "/users"
+    expected_status: 200
+    required_response_fields:
+      - "[0].id"
+      - "[0].name"
+      - "[0].username"
+      - "[0].email"
+      - "[0].address"
+      - "[0].phone"
+      - "[0].website"
+    field_types:
+      "[0].id": "int"
+      "[0].name": "string"
+      "[0].username": "string"
+      "[0].email": "string"
+      "[0].phone": "string"
+      "[0].website": "string"
+
+  # Test 8: Invalid Endpoint (should fail)
+  - name: "Test Invalid Endpoint"
+    description: "Test an invalid endpoint to verify error handling"
+    method: "GET"
+    url: "/invalid-endpoint"
+    expected_status: 404

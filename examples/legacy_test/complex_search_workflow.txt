@@ -1,0 +1,17 @@
+Navigate to https://www.wikipedia.org
+Verify Wikipedia homepage loads with search box visible
+Click on the search input field
+Type 'Artificial Intelligence' in the search box
+Press Enter or click search button
+Verify the AI article page loads with title containing 'Artificial intelligence'
+Scroll down to see more content
+Click on the 'Machine learning' link in the article
+Verify machine learning page loads successfully
+Click on the 'History' tab or section
+Verify historical information is displayed
+Scroll to the top of the page
+Click on the Wikipedia logo to return to homepage
+Verify we are back on the Wikipedia main page
+Search for 'Python programming language'
+Click on the first search result
+Verify Python programming page loads with code examples visible

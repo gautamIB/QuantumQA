@@ -1,0 +1,246 @@
+# Action Patterns Configuration
+# Maps natural language patterns to structured actions
+
+navigate:
+  - regex: "navigate\\s+to\\s+(.+)"
+    description: "Navigate to URL"
+    extractor:
+      url: 1
+  
+  - regex: "go\\s+to\\s+(.+)" 
+    description: "Go to URL"
+    extractor:
+      url: 1
+
+  - regex: "open\\s+(.+)"
+    description: "Open URL"
+    extractor:
+      url: 1
+
+click:
+  - regex: "click\\s+(?:on\\s+)?(.+?)(?:\\s+button|\\s+link|\\s+element|$)"
+    description: "Click on element"
+    extractor:
+      target: 1
+  
+  - regex: "tap\\s+(?:on\\s+)?(.+)"
+    description: "Tap element (mobile-like)"
+    extractor:
+      target: 1
+  
+  - regex: "select\\s+(.+?)(?:\\s+from\\s+dropdown|$)"
+    description: "Select from dropdown"
+    extractor:
+      target: 1
+      context:
+        element_type: "dropdown"
+
+type:
+  - regex: "type\\s+[\"']?([^\"']+?)[\"']?\\s+(?:in|into)\\s+(.+?)(?:\\s+field|$)"
+    description: "Type text in field"
+    extractor:
+      text: 1
+      field: 2
+  
+  - regex: "enter\\s+[\"']?([^\"']+?)[\"']?\\s+(?:in|into)\\s+(.+)"
+    description: "Enter text in field"
+    extractor:
+      text: 1
+      field: 2
+  
+  - regex: "input\\s+[\"']?([^\"']+?)[\"']?\\s+(?:in|into)\\s+(.+)"
+    description: "Input text in field"
+    extractor:
+      text: 1
+      field: 2
+
+upload:
+  - regex: "upload\\s+file\\s+from\\s+path:\\s*[\"']([^\"']+)[\"']"
+    description: "Upload file from local path"
+    extractor:
+      file_path: 1
+  
+  - regex: "upload\\s+[\"']?([^\"']+)[\"']?"
+    description: "Upload file by path"
+    extractor:
+      file_path: 1
+
+send:
+  - regex: "send\\s+(?:the\\s+)?message"
+    description: "Send message"
+    extractor:
+      target: "send"
+  
+  - regex: "send\\s+(?:button|it)"
+    description: "Send button click"
+    extractor:
+      target: "send"
+
+select:
+  - regex: "select\\s+[\"']([^\"']+)[\"']"
+    description: "Select option with quotes"
+    extractor:
+      target: 1
+  
+  - regex: "select\\s+(.+?)(?:\\s+option|$)"
+    description: "Select option"
+    extractor:
+      target: 1
+
+navigate:
+  - regex: "navigate\\s+(?:away\\s+)?(?:from\\s+)?(.+?)(?:\\s+page|$)"
+    description: "Navigate away from page"
+    extractor:
+      url: 1
+      
+  - regex: "return\\s+to\\s+(.+)"
+    description: "Return to page/section"
+    extractor:
+      url: 1
+
+explore:
+  - regex: "explore\\s+(.+)"
+    description: "Explore or investigate"
+    extractor:
+      target: 1
+
+test:
+  - regex: "test\\s+(?:that\\s+)?(.+)"
+    description: "Test functionality"
+    extractor:
+      target: 1
+  
+  - regex: "try\\s+(.+)"
+    description: "Try action"
+    extractor:
+      target: 1
+
+confirm:
+  - regex: "confirm\\s+(.+?)(?:\\s+if\\s+prompted|$)"
+    description: "Confirm action"
+    extractor:
+      target: 1
+
+close:
+  - regex: "close\\s+(.+?)(?:\\s+without.*|$)"
+    description: "Close element"
+    extractor:
+      target: 1
+
+verify:
+  # Business Process Verifications (HIGHEST PRIORITY - Must come first!)
+  - regex: "verify\\s+(?:that\\s+)?(.+?)\\s+(?:creation|setup|initialization)\\s+process\\s+started"
+    description: "Verify business process started"
+    extractor:
+      verification_type: "process_started"
+      expected_value: 1
+      
+  - regex: "verify\\s+(?:that\\s+)?(.+?)\\s+process\\s+started"
+    description: "Verify any process started"
+    extractor:
+      verification_type: "process_started"
+      expected_value: 1
+  
+  - regex: "verify\\s+(?:that\\s+)?(.+?)\\s+(?:process|workflow)\\s+(?:started|initiated|began)"
+    description: "Verify workflow started"
+    extractor:
+      verification_type: "process_started" 
+      expected_value: 1
+      
+  - regex: "verify\\s+(?:that\\s+)?(.+?)\\s+(?:was|is)\\s+(?:created|generated|initiated)"
+    description: "Verify creation completed"
+    extractor:
+      verification_type: "creation_completed"
+      expected_value: 1
+  
+  # Standard Verification Types (Medium Priority)
+  - regex: "verify\\s+(?:that\\s+)?(?:it\\s+)?redirect[s]?\\s+to\\s+(?:new\\s+)?page\\s+with\\s+url\\s+prefix\\s+(?:as\\s+)?[\"']?([^\"']+?)[\"']?\\s+and\\s+suffix\\s+(?:as\\s+)?[\"']?([^\"']+)[\"']?"
+    description: "Verify URL redirection with prefix and suffix"
+    extractor:
+      verification_type: "url_redirect_with_patterns"
+      url_prefix: 1
+      url_suffix: 2
+      
+  - regex: "verify\\s+(?:that\\s+)?(?:it\\s+)?redirect[s]?\\s+to\\s+(.+)"
+    description: "Verify URL redirection"
+    extractor:
+      verification_type: "url_change"
+      expected_value: 1
+  
+  - regex: "verify\\s+(?:that\\s+)?(.+?)\\s+(?:loads?|loaded)\\s+successfully"
+    description: "Verify page loads/loaded"
+    extractor:
+      verification_type: "page_load"
+  
+  - regex: "verify\\s+(?:that\\s+)?page\\s+(?:gets\\s+)?(?:loads?|loaded)\\s+successfully"
+    description: "Verify page gets loaded"
+    extractor:
+      verification_type: "page_load"
+  
+  - regex: "verify\\s+(?:that\\s+)?title\\s+contains\\s+[\"']?([^\"']+)[\"']?"
+    description: "Verify title contains text"
+    extractor:
+      verification_type: "title_contains"
+      expected_value: 1
+  
+  - regex: "verify\\s+(?:that\\s+)?(.+?)\\s+(?:is\\s+)?visible"
+    description: "Verify element is visible"
+    extractor:
+      verification_type: "element_visible"
+      expected_value: 1
+  
+  - regex: "verify\\s+(?:that\\s+)?(.+?)\\s+(?:appears?|shows?)"
+    description: "Verify element appears"
+    extractor:
+      verification_type: "element_visible"
+      expected_value: 1
+  
+  # Generic Fallbacks (LOWEST PRIORITY - Must come last!)
+  - regex: "check\\s+(?:that\\s+)?(.+)"
+    description: "Generic verification"
+    extractor:
+      verification_type: "generic"
+  
+  - regex: "verify\\s+(.+)"
+    description: "Generic verification" 
+    extractor:
+      verification_type: "generic"
+
+wait:
+  - regex: "wait\\s+(?:for\\s+)?(\\d+)\\s*seconds?"
+    description: "Wait for specific duration"
+    extractor:
+      wait_type: "time"
+      duration: 1
+  
+  - regex: "wait\\s+(?:for\\s+)?(.+?)\\s+to\\s+(?:appear|load|show)"
+    description: "Wait for element to appear"
+    extractor:
+      wait_type: "element_visible"
+      target: 1
+  
+  - regex: "wait\\s+(?:for\\s+)?(?:page\\s+to\\s+)?load"
+    description: "Wait for page load"
+    extractor:
+      wait_type: "page_load"
+  
+  - regex: "wait\\s+(?:for\\s+)?(.+)"
+    description: "Generic wait"
+    extractor:
+      wait_type: "generic"
+
+scroll:
+  - regex: "scroll\\s+down"
+    description: "Scroll down"
+    extractor:
+      direction: "down"
+  
+  - regex: "scroll\\s+up"
+    description: "Scroll up"
+    extractor:
+      direction: "up"
+  
+  - regex: "scroll\\s+to\\s+(?:the\\s+)?top"
+    description: "Scroll to top"
+    extractor:
+      direction: "top"

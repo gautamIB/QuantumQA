@@ -1,0 +1,61 @@
+# Chatbot API Test Suite
+# Chatbot API testing service with authentication examples
+# Documentation: https://aihub-uat.internal.instabase.com/
+
+name: "Chatbot API Tests"
+description: "Test suite demonstrating various chatbot API methods"
+base_url: "https://aihub-uat.internal.instabase.com"
+
+global_headers:
+  User-Agent: "QuantumQA-API-Tester/1.0"
+  Accept: "application/json"
+  Content-Type: "application/json"
+  ib-context: "chatbot-test"
+  "Authorization": "Bearer {cred:aihub.token}"
+
+endpoints:
+  # Test 1: Chatbot Create Request
+  - name: "Simple Create Request"
+    description: "Basic Chatbot Create request to create a new chatbot"
+    method: "POST"
+    url: "/api/v2/chatbots"
+    payload:
+      repo_id: "e4a817cc-8f8a-4cb5-ae4d-81fa3edccf9f"
+    expected_status: 201
+    required_response_fields:
+      - "chatbot_id"
+    field_types:
+      chatbot_id: "string"
+
+  # Test 2: Get Chatbot Request
+  - name: "Get Chatbot Request"
+    description: "Get Chatbot request to get the chatbot details"
+    method: "GET"
+    url: "/api/v2/zero-shot-idp/projects/app/cbb1f2ff-e5c6-41a9-a4f1-129aa19972d4"
+    expected_status: 200
+    required_response_fields:
+      - "solution"
+      - "solution.id"
+      - "solution.name"
+      - "solution.owner"
+      - "solution.description"
+      - "solution.contextAccount"
+      - "solution.version"
+      - "solution.visibility"
+      - "solution.metadata"
+      - "solution.solutionType"
+      - "solution.createdAtMs"
+      - "solution.updatedAtMs"
+    field_types:
+      "solution": "dict"
+      "solution.name": "string"
+      "solution.id": "string"
+      "solution.owner": "string"
+      "solution.description": "string"
+      "solution.contextAccount": "string"
+      "solution.version": "string"
+      "solution.visibility": "string"
+      "solution.metadata": "string"
+      "solution.solutionType": "string"
+      "solution.createdAtMs": "string"
+      "solution.updatedAtMs": "string"

@@ -1,0 +1,7 @@
+# QuantumQA - Core Dependencies (Python 3.9+ compatible)
+playwright>=1.40.0
+openai>=1.3.8
+pydantic>=2.5.0
+click>=8.1.7
+rich>=13.7.0
+pillow>=10.1.0

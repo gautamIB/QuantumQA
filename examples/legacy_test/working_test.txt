@@ -1,0 +1,4 @@
+navigate to https://example.com
+verify page loads successfully
+verify that page title contains Example
+verify the page loads successfully
