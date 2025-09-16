@@ -17,8 +17,11 @@ from ..executors.action_executor import ActionExecutor
 class ChromeEngine:
     """Generic Chrome testing engine that works with any application."""
     
-    def __init__(self, config_dir: Optional[str] = None, credentials_file: Optional[str] = None):
+    def __init__(self, config_dir: Optional[str] = None, credentials_file: Optional[str] = None, 
+                 connect_to_existing: bool = True, debug_port: int = 9222):
         self.config_dir = Path(config_dir) if config_dir else Path(__file__).parent.parent / "config"
+        self.connect_to_existing = connect_to_existing
+        self.debug_port = debug_port
 
         # Handle credentials file path
         self.credentials_file = None
@@ -49,14 +52,90 @@ class ChromeEngine:
         self.browser = None
         self.context = None
         self.page = None
+        
+        # Track if we connected to existing browser
+        self._connected_to_existing = False
     
     async def initialize(self, headless: bool = False, viewport: Dict[str, int] = None) -> None:
-        """Initialize browser with generic settings."""
+        """Initialize browser with generic settings and browser reuse capability."""
         print("🚀 Initializing Generic Chrome Engine...")
         
         self.playwright = await async_playwright().start()
         
-        # Launch Google Chrome (not Chromium) for better performance and existing profile access
+        # Try to connect to existing browser first
+        if self.connect_to_existing:
+            try:
+                print(f"🔗 Attempting to connect to existing Chrome on port {self.debug_port}...")
+                self.browser = await self.playwright.chromium.connect_over_cdp(f"http://localhost:{self.debug_port}")
+                print("✅ Connected to existing Chrome browser!")
+                self._connected_to_existing = True
+                
+                # Find the best existing context to reuse (with authentication/cookies)
+                contexts = self.browser.contexts
+                if contexts:
+                    print(f"📱 Found {len(contexts)} existing contexts")
+                    
+                    # Find context with active pages (likely has user authentication)
+                    best_context = None
+                    for i, context in enumerate(contexts):
+                        pages = context.pages
+                        print(f"   Context {i}: {len(pages)} pages")
+                        if pages:
+                            # Check if any pages have been navigated (not just blank)
+                            for j, page in enumerate(pages):
+                                try:
+                                    url = page.url
+                                    title = await page.title()
+                                    print(f"     Page {j}: {title} ({url})")
+                                    if url and url != "about:blank" and url != "chrome://newtab/":
+                                        best_context = context
+                                        print(f"   🎯 Context {i} has active pages - will reuse for authentication")
+                                        break
+                                except:
+                                    continue
+                        if best_context:
+                            break
+                    
+                    # Use the best context found or fall back to first
+                    if best_context:
+                        self.context = best_context
+                        print(f"✅ Reusing authenticated context with {len(self.context.pages)} existing pages")
+                    else:
+                        self.context = contexts[0]
+                        print(f"📱 Using first context (no active pages found)")
+                    
+                    # Create new tab in the selected context
+                    print(f"📄 Creating new tab in existing context...")
+                    self.page = await self.context.new_page()
+                    print(f"✅ New tab created successfully")
+                    
+                else:
+                    print("📱 No existing contexts found, creating new one")
+                    viewport = viewport or {'width': 1400, 'height': 900}
+                    self.context = await self.browser.new_context(
+                        viewport=viewport,
+                        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+                    )
+                    self.page = await self.context.new_page()
+                    print(f"📄 Created new context and page")
+                    
+            except Exception as e:
+                print(f"⚠️ Could not connect to existing Chrome: {e}")
+                print("🚀 Launching new Chrome browser...")
+                self._connected_to_existing = False
+                await self._launch_new_browser(headless, viewport)
+        else:
+            print("🚀 Launching new Chrome browser (existing connection disabled)...")
+            self._connected_to_existing = False
+            await self._launch_new_browser(headless, viewport)
+        
+        # Enable console logging for debugging
+        self.page.on("console", lambda msg: print(f"🟦 Console: {msg.text}"))
+        
+        print("✅ Generic Chrome Engine initialized")
+    
+    async def _launch_new_browser(self, headless: bool = False, viewport: Dict[str, int] = None) -> None:
+        """Launch a new Chrome browser instance."""
         self.browser = await self.playwright.chromium.launch(
             channel="chrome",  # Use installed Chrome instead of bundled Chromium
             headless=headless,
@@ -64,7 +143,8 @@ class ChromeEngine:
                 "--no-first-run",
                 "--disable-blink-features=AutomationControlled",
                 "--disable-web-security",  # For testing across domains
-                "--disable-features=VizDisplayCompositor"
+                "--disable-features=VizDisplayCompositor",
+                f"--remote-debugging-port={self.debug_port}"  # Enable remote debugging for future connections
             ]
         )
         
@@ -76,11 +156,6 @@ class ChromeEngine:
         )
         
         self.page = await self.context.new_page()
-        
-        # Enable console logging for debugging
-        self.page.on("console", lambda msg: print(f"🟦 Console: {msg.text}"))
-        
-        print("✅ Generic Chrome Engine initialized")
     
     async def execute_test(self, instruction_file: str) -> Dict[str, Any]:
         """Execute test instructions from file using generic engine."""
@@ -417,17 +492,32 @@ class ChromeEngine:
     
     async def cleanup(self):
         """Clean up browser resources."""
-        print("\n🛑 Cleaning up browser resources...")
+        print("\n🛑 Cleaning up Generic Chrome Engine...")
         
         try:
+            # Close the test page
             if self.page:
                 await self.page.close()
-            if self.context:
-                await self.context.close()
-            if self.browser:
-                await self.browser.close()
+                print("📄 Closed test page")
+            
+            # Only close context and browser if we created them (not connected to existing)
+            if hasattr(self, '_connected_to_existing') and self._connected_to_existing:
+                print("🔗 Connected to existing browser - keeping browser instance alive")
+                # Don't close context if it was existing, unless we created it
+                if self.context and len(self.context.pages) == 0:
+                    print("📱 Closing empty context")
+                    await self.context.close()
+            else:
+                print("🚀 Launched new browser - closing all resources")
+                if self.context:
+                    await self.context.close()
+                if self.browser:
+                    await self.browser.close()
+            
             if self.playwright:
                 await self.playwright.stop()
-            print("✅ Cleanup completed")
+                
+            print("✅ Generic Chrome Engine cleanup completed")
+            
         except Exception as e:
             print(f"⚠️ Cleanup warning: {e}")

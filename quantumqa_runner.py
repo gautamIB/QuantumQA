@@ -40,12 +40,18 @@ def detect_test_type(instruction_file: str) -> str:
 
 
 async def run_ui_test(instruction_file: str, headless: bool = False, 
-                     credentials_file: Optional[str] = None, config_dir: Optional[str] = None):
+                     credentials_file: Optional[str] = None, config_dir: Optional[str] = None,
+                     connect_to_existing: bool = True, debug_port: int = 9222):
     """Run UI test using Chrome engine."""
     print("🌐 Running UI Test")
     print("=" * 50)
     
-    engine = ChromeEngine(config_dir=config_dir, credentials_file=credentials_file)
+    engine = ChromeEngine(
+        config_dir=config_dir, 
+        credentials_file=credentials_file,
+        connect_to_existing=connect_to_existing,
+        debug_port=debug_port
+    )
     
     try:
         await engine.initialize(headless=headless)
@@ -118,9 +124,15 @@ async def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # UI Tests (auto-detected)
+  # UI Tests (auto-detected, reuses existing Chrome by default)
   python quantumqa_runner.py examples/conversation_with_login.txt --visible
   python quantumqa_runner.py examples/conversation_with_login.txt --credentials quantumqa/config/credentials.yaml
+  
+  # Force new browser window (don't reuse existing)
+  python quantumqa_runner.py examples/my_test.txt --visible --new-browser
+  
+  # Use different debug port for browser connection
+  python quantumqa_runner.py examples/my_test.txt --visible --debug-port 9223
   
   # API Tests (auto-detected)  
   python quantumqa_runner.py examples/api/chatbot_tests.yaml
@@ -141,6 +153,12 @@ Examples:
                        help='Path to credentials file (default: quantumqa/config/credentials.yaml)')
     parser.add_argument('--config', 
                        help='Path to config directory (default: quantumqa/config/)')
+    parser.add_argument('--connect-existing', action='store_true', default=True,
+                       help='Connect to existing Chrome browser if available (default: True)')
+    parser.add_argument('--new-browser', action='store_true', 
+                       help='Force launch new browser instead of connecting to existing')
+    parser.add_argument('--debug-port', type=int, default=9222,
+                       help='Chrome remote debugging port (default: 9222)')
     
     args = parser.parse_args()
     
@@ -161,12 +179,20 @@ Examples:
     else:
         test_type = args.type
     
+    # Determine browser connection strategy
+    connect_to_existing = args.connect_existing and not args.new_browser
+    
     print("🚀 QuantumQA Framework Runner")
     print("=" * 50)
     print(f"📁 Instruction File: {args.instruction_file}")
     print(f"🎯 Test Type: {test_type.upper()}")
     if args.credentials:
         print(f"🔐 Credentials: {args.credentials}")
+    if test_type == 'ui':
+        browser_mode = "Connect to existing" if connect_to_existing else "Launch new"
+        print(f"🌐 Browser Mode: {browser_mode}")
+        if connect_to_existing:
+            print(f"🐛 Debug Port: {args.debug_port}")
     print("=" * 50)
     
     # Run appropriate test
@@ -174,7 +200,14 @@ Examples:
         result = await run_api_test(args.instruction_file, args.credentials)
     else:  # ui
         headless = not args.visible
-        result = await run_ui_test(args.instruction_file, headless, args.credentials, args.config)
+        result = await run_ui_test(
+            args.instruction_file, 
+            headless, 
+            args.credentials, 
+            args.config,
+            connect_to_existing,
+            args.debug_port
+        )
     
     # Exit with appropriate code
     if result:

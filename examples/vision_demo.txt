@@ -1,0 +1,12 @@
+# Vision-Enhanced QuantumQA Demo
+# This test demonstrates AI-powered element detection
+
+Navigate to https://httpbin.org/forms/post
+Click the customer name field
+Type 'John Doe' in the customer name field
+Click the email field
+Type 'john.doe@example.com' in the email field
+Click the telephone field
+Type '555-123-4567' in the telephone field
+Click the submit button
+Verify that the page shows successful form submission

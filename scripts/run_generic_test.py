@@ -17,7 +17,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from quantumqa.engines.chrome_engine import ChromeEngine
 
 
-async def run_generic_test(instruction_file: str, headless: bool = False, config_dir: str = None, credentials_file: str = None):
+async def run_generic_test(instruction_file: str, headless: bool = False, config_dir: str = None, 
+                          credentials_file: str = None, connect_to_existing: bool = True, debug_port: int = 9222):
     """Run test using the generic Chrome engine."""
     
     print("🚀 QuantumQA Generic Test Runner")
@@ -27,6 +28,11 @@ async def run_generic_test(instruction_file: str, headless: bool = False, config
     print("📝 Instructions:", instruction_file)
     print("🧠 AI-Powered Element Detection")
     print("⚙️ Configuration-Driven Logic")
+    
+    browser_mode = "Connect to existing" if connect_to_existing else "Launch new"
+    print(f"🌐 Browser Mode: {browser_mode}")
+    if connect_to_existing:
+        print(f"🐛 Debug Port: {debug_port}")
     
     if credentials_file:
         cred_path = Path(credentials_file)
@@ -39,8 +45,13 @@ async def run_generic_test(instruction_file: str, headless: bool = False, config
     
     print("-" * 50)
     
-    # Initialize generic engine with credentials
-    engine = ChromeEngine(config_dir=config_dir, credentials_file=credentials_file)
+    # Initialize generic engine with credentials and browser reuse
+    engine = ChromeEngine(
+        config_dir=config_dir, 
+        credentials_file=credentials_file,
+        connect_to_existing=connect_to_existing,
+        debug_port=debug_port
+    )
     
     try:
         # Initialize browser
@@ -133,6 +144,8 @@ def main():
     headless = "--visible" not in sys.argv
     config_dir = None
     credentials_file = None
+    connect_to_existing = "--new-browser" not in sys.argv  # Default to True, unless --new-browser is specified
+    debug_port = 9222
     
     # Check for config directory option
     if "--config" in sys.argv:
@@ -155,13 +168,23 @@ def main():
         if default_creds.exists():
             credentials_file = str(default_creds)
     
+    # Check for debug port option
+    if "--debug-port" in sys.argv:
+        port_index = sys.argv.index("--debug-port")
+        if port_index + 1 < len(sys.argv):
+            try:
+                debug_port = int(sys.argv[port_index + 1])
+            except ValueError:
+                print(f"❌ Error: Invalid debug port number")
+                sys.exit(1)
+    
     # Validate instruction file exists
     if not Path(instruction_file).exists():
         print(f"❌ Error: Instruction file not found: {instruction_file}")
         sys.exit(1)
     
     # Run the test
-    asyncio.run(run_generic_test(instruction_file, headless, config_dir, credentials_file))
+    asyncio.run(run_generic_test(instruction_file, headless, config_dir, credentials_file, connect_to_existing, debug_port))
 
 
 def print_usage():
@@ -175,10 +198,14 @@ def print_usage():
     print("  --config <dir>                 Use custom config directory")
     print("  --credentials <file>           Use credentials file for secure data")
     print("  --creds <file>                 Shorthand for --credentials")
+    print("  --new-browser                  Force launch new browser (default: reuse existing)")
+    print("  --debug-port <port>            Chrome remote debugging port (default: 9222)")
     print("\nExamples:")
     print("  python run_generic_test.py examples/aihub_with_login.txt --visible")
     print("  python run_generic_test.py examples/my_custom_test.txt --visible --creds credentials.yaml")
     print("  python run_generic_test.py examples/any_app_test.txt --config my_configs/ --credentials secrets.yaml")
+    print("  python run_generic_test.py examples/my_test.txt --visible --new-browser  # Force new browser")
+    print("  python run_generic_test.py examples/my_test.txt --visible --debug-port 9223  # Custom port")
     print("\n🎯 Key Features:")
     print("  ✅ Works with ANY application (no hardcoded selectors)")
     print("  ✅ AI-powered element detection")

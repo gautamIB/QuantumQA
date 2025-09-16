@@ -1,16 +1,9 @@
 Navigate to https://aihub-uat.internal.instabase.com/
 Verify the AIHub homepage loads successfully
-Click on Sign In
-Verify that login form appears
-Type {cred:aihub.email} in email field
-Click on Continue
-Type {cred:aihub.password} in password field
-Click on Log In
-Verify that user is logged in successfully
-Click on workspaces
+Click on workspaces from the top menu option
 Verify that workspaces page loads successfully
 Verify that page has left panel with workspaces list
-Click on My workspace
+Click on My workspace from the left panel
 Verify that My-Workspace loads successfully
 Verify that workspace has 4 tab options
 Verify that create tab is selected by default
