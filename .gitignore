@@ -51,3 +51,4 @@ encryption.key
 # OS
 .DS_Store
 Thumbs.db
+generated_instructions/*

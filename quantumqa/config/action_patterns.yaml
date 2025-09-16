@@ -244,3 +244,22 @@ scroll:
     description: "Scroll to top"
     extractor:
       direction: "top"
+      
+run_function:
+  - regex: "run\\s+function\\s+'([^']+)'(?:\\s+(.*))?$"
+    description: "Run a Python function with arguments (single quotes)"
+    extractor:
+      function_call: 1
+      arguments: 2
+      
+  - regex: "run\\s+function\\s+\"([^\"]+)\"(?:\\s+(.*))?$"
+    description: "Run a Python function with arguments (double quotes)"
+    extractor:
+      function_call: 1
+      arguments: 2
+      
+  - regex: "run\\s+function\\s+([\\w\\.\\-_]+)(?:\\s+(.*))?$"
+    description: "Run a Python function with arguments (no quotes)"
+    extractor:
+      function_call: 1
+      arguments: 2
