@@ -1,0 +1,6 @@
+# E2E Test Case 3: Complex UI Elements with Vision AI
+# Tests: Multiple element types, navigation, validation
+
+Navigate to https://www.w3schools.com/html/tryit.asp?filename=tryhtml_form_elements
+Wait 3 seconds
+Verify that the page loads successfully

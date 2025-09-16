@@ -1,0 +1,15 @@
+# E2E Test Case 1: Form Interaction with Vision AI
+# Tests: Navigation, form field detection, text input, button clicking
+
+Navigate to https://httpbin.org/forms/post
+Wait 2 seconds
+Click the customer name field
+Type 'Alice Johnson' in the customer name field
+Click the email field  
+Type 'alice.johnson@test.com' in the email field
+Click the telephone field
+Type '555-987-6543' in the telephone field
+Click the comments field
+Type 'This is a test submission using AI vision detection' in the comments field
+Click the submit button
+Verify that the page shows form submission data

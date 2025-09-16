@@ -1,0 +1,11 @@
+# E2E Test Case 2: Google Search with Vision AI
+# Tests: Real-world navigation, search functionality, result validation
+
+Navigate to https://www.google.com
+Wait 2 seconds
+Click the search box
+Type 'QuantumQA testing framework' in the search box
+Wait 1 second
+Click the Google Search button
+Wait 3 seconds
+Verify that the page shows search results

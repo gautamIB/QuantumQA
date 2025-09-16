@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, Dict, List
 from pydantic import BaseModel
 
 
@@ -96,7 +96,7 @@ class AgentMessage:
     sender: str
     recipient: str
     message_type: MessageType
-    payload: dict[str, Any]
+    payload: Dict[str, Any]
     timestamp: datetime
     parent_message_id: Optional[str] = None
     priority: Priority = Priority.NORMAL
@@ -144,20 +144,28 @@ class ElementDetectionResult(BaseModel):
     """Result of element detection."""
     found: bool
     confidence: float
+    instruction: str
     coordinates: Optional[Coordinates] = None
+    center_coordinates: Optional[Coordinates] = None
     bounding_box: Optional[BoundingBox] = None
     element_type: Optional[str] = None
     visible_text: Optional[str] = None
+    attributes: Dict[str, Any] = {}
+    interaction_type: str = "click"
+    page_analysis: Dict[str, Any] = {}
+    recommendation: str = ""
+    alternative_elements: List[Dict[str, Any]] = []
+    error_message: Optional[str] = None
 
 
 class TestResult(BaseModel):
     """Complete test execution result."""
     test_id: str
-    instructions: list[str]
+    instructions: List[str]
     status: TestStatus
     execution_time: float
-    steps: list[StepResult]
-    artifacts: list[str] = []
+    steps: List[StepResult]
+    artifacts: List[str] = []
     cost_estimate: float = 0.0
     
     def summary(self) -> str:

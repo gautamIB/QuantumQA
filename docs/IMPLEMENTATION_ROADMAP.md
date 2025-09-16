@@ -66,7 +66,7 @@ This document outlines the implementation strategy for QuantumQA as a lightweigh
 
 **Tasks**:
 - [ ] Implement NavigatorAgent for page navigation
-- [ ] Create ElementDetectorAgent with OpenAI GPT-4V integration
+- [ ] Create ElementDetectorAgent with OpenAI GPT-4V integration 
 - [ ] Build ActionExecutorAgent for UI interactions
 - [ ] Implement ValidatorAgent for outcome verification
 - [ ] Add image preprocessing and optimization
