@@ -112,20 +112,48 @@ class InstructionParser:
     def _extract_click_params(self, instruction: str, match: re.Match, extractor: Dict) -> Dict[str, Any]:
         """Extract click parameters."""
         
+        # Define stop words that should be filtered from targets
+        STOP_WORDS = {
+            'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
+            'has', 'he', 'in', 'is', 'it', 'its', 'of', 'on', 'that', 'the',
+            'to', 'was', 'were', 'will', 'with', 'would', 'this', 'these',
+            'those', 'they', 'there', 'their', 'then', 'than', 'them'
+        }
+        
         # Extract target element text
         target = None
         
-        # Try common click patterns
+        # Try common click patterns with better stop word handling
         click_patterns = [
-            r'click (?:on |the )?["\']?([^"\']+?)["\']?(?:\s|$)',
+            r'click (?:on )?(?:the )?["\']?([^"\']+?)["\']?(?:\s+button|\s+link|\s+element|\s*$)',
+            r'click (?:on )?["\']?(.+?)["\']?(?:\s|$)',
             r'click\s+(.+?)(?:\s+button|\s+link|\s+element|$)',
         ]
         
         for pattern in click_patterns:
             target_match = re.search(pattern, instruction.lower())
             if target_match:
-                target = target_match.group(1).strip()
-                break
+                raw_target = target_match.group(1).strip()
+                
+                # Filter out stop words from the beginning and end
+                target_words = raw_target.split()
+                # Remove leading stop words
+                while target_words and target_words[0] in STOP_WORDS:
+                    target_words.pop(0)
+                # Remove trailing stop words
+                while target_words and target_words[-1] in STOP_WORDS:
+                    target_words.pop()
+                
+                if target_words:
+                    target = ' '.join(target_words)
+                    # Strip trailing punctuation such as commas or quotes that leak from sentence
+                    target = target.rstrip(",.'\"”’`)")
+                    break
+                else:
+                    # If all words were stop words, keep the original
+                    # Strip trailing punctuation for robustness
+                    target = raw_target.rstrip(",.'\"”’`)")
+                    break
         
         # Extract context clues
         context = self._extract_context_clues(instruction)

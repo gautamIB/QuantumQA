@@ -52,3 +52,9 @@ encryption.key
 # OS
 .DS_Store
 Thumbs.db
+
+# Result files
+results/
+logs/
+test_results/
+reports/
