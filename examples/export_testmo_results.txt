@@ -19,4 +19,3 @@ Click on Export to csv
 Click on Export button in the dialog box
 Wait for 5 seconds
 Verify that CSV file is downloaded
-Run function parse_testmo_export_to_json /Users/jeminjain/ProjectsOnGit/QuantumQA/downloads/testmo-export-run-87.csv /Users/jeminjain/ProjectsOnGit/QuantumQA/downloads/testmo-cases.json

@@ -231,7 +231,7 @@ class TestmoProcessor:
                 Description: {test_case.description if test_case.description else ""}
                 """
 
-            print(f"🧠 Generating instructions for test cases: {test_case}")
+            # print(f"🧠 Generating instructions for test cases: {test_case}")
 
             # Call the OpenAI API
             response = self.client.chat.completions.create(

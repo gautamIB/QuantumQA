@@ -39,9 +39,10 @@ class ElementFinder:
 
                 element = page.locator(selector).first
 
-                # Check if element exists and is visible
+                # Check if element exists and is visible with increased timeout for export buttons
+                timeout = 5000 if "export" in selector.lower() else 2000
                 if await element.count() > 0 and await element.is_visible(
-                        timeout=2000):
+                        timeout=timeout):
                     # print(f"    ✅ Found using {strategy}: {selector} {element} {element.text_content()}")
                     print(f"    ✅ Found using {strategy}: {selector}")
 
@@ -515,46 +516,80 @@ class ElementFinder:
                 },
             ])
 
-        # Strategy 4: Special handling for icon buttons with tooltips/data-content
+            # Strategy 4: Special handling for icon buttons with tooltips/data-content
         if "export" in target_lower or "download" in target_lower:
             print(
                 f"    🔍 Adding special selectors for export/download buttons")
-            selectors.extend([{
-                "selector": "[data-content='Export']",
-                "strategy": "export_data_content",
-                "priority": 2
-            }, {
-                "selector": "button.tooltip[data-content='Export']",
-                "strategy": "export_tooltip_button",
-                "priority": 2
-            }, {
-                "selector":
-                "button:has(.fa-file-download), button:has(.icon-export)",
-                "strategy": "download_icon_button",
-                "priority": 2
-            }, {
-                "selector": "[data-ui-tooltip='true']:has(.fa-file-download)",
-                "strategy": "tooltip_download_icon",
-                "priority": 2
-            }, {
-                "selector":
-                "[aria-label*='export' i], [aria-label*='download' i]",
-                "strategy": "export_aria_label",
-                "priority": 3
-            }, {
-                "selector": "button.ui.button.primary:has-text('Export')",
-                "strategy": "export_primary_button",
-                "priority": 1
-            }, {
-                "selector":
-                ".dialog__actions__content__primary button:has-text('Export')",
-                "strategy": "dialog_export_button",
-                "priority": 1
-            }, {
-                "selector": "button[data-target='submitButton']",
-                "strategy": "submit_button_target",
-                "priority": 1
-            }])
+            selectors.extend([
+                {
+                    "selector": "[data-content='Export']",
+                    "strategy": "export_data_content",
+                    "priority": 1  # Increased priority
+                },
+                {
+                    "selector":
+                    "[data-content='export']",  # Added lowercase variant
+                    "strategy": "export_data_content_lowercase",
+                    "priority": 1
+                },
+                {
+                    "selector":
+                    "[data-content*='Export' i]",  # Added case-insensitive variant
+                    "strategy": "export_data_content_insensitive",
+                    "priority": 1
+                },
+                {
+                    "selector": "button.tooltip[data-content='Export']",
+                    "strategy": "export_tooltip_button",
+                    "priority": 2
+                },
+                {
+                    "selector":
+                    "button[data-content='Export']",  # Added button-specific selector
+                    "strategy": "export_button_data_content",
+                    "priority": 1
+                },
+                {
+                    "selector":
+                    "*[data-content='Export']",  # Added wildcard selector
+                    "strategy": "export_any_data_content",
+                    "priority": 2
+                },
+                {
+                    "selector":
+                    "button:has(.fa-file-download), button:has(.icon-export)",
+                    "strategy": "download_icon_button",
+                    "priority": 2
+                },
+                {
+                    "selector":
+                    "[data-ui-tooltip='true']:has(.fa-file-download)",
+                    "strategy": "tooltip_download_icon",
+                    "priority": 2
+                },
+                {
+                    "selector":
+                    "[aria-label*='export' i], [aria-label*='download' i]",
+                    "strategy": "export_aria_label",
+                    "priority": 3
+                },
+                {
+                    "selector": "button.ui.button.primary:has-text('Export')",
+                    "strategy": "export_primary_button",
+                    "priority": 1
+                },
+                {
+                    "selector":
+                    ".dialog__actions__content__primary button:has-text('Export')",
+                    "strategy": "dialog_export_button",
+                    "priority": 1
+                },
+                {
+                    "selector": "button[data-target='submitButton']",
+                    "strategy": "submit_button_target",
+                    "priority": 1
+                }
+            ])
 
         # Strategy 5: Context-aware matching
         if context.get("color"):
