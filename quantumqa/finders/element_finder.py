@@ -285,7 +285,7 @@ class ElementFinder:
             self, target: str, context: Dict[str,
                                              Any]) -> List[Dict[str, Any]]:
         """Generate intelligent click selectors based on target and context."""
-
+        print(f"    🔍 Generating click selectors for: '{target}'")
         selectors = []
         target_lower = target.lower()
 

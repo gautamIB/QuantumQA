@@ -6,9 +6,10 @@ Uses computer vision and LLMs for intelligent element finding instead of hardcod
 
 import asyncio
 import time
+from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional
-from playwright.async_api import async_playwright, Page, Browser, BrowserContext
+from typing import List, Dict, Any, Optional, Tuple
+from playwright.async_api import async_playwright, Page, Browser, BrowserContext, Download
 
 from ..parsers.instruction_parser import InstructionParser
 from ..executors.action_executor import ActionExecutor
@@ -16,6 +17,7 @@ from ..agents.element_detector import ElementDetectorAgent
 from ..core.llm import VisionLLMClient
 from ..core.ui_context_manager import UIContextManager
 from ..core.models import ElementDetectionResult, Coordinates
+from .element_selector_util import find_and_click_most_relevant_element
 
 
 class VisionChromeEngine:
@@ -66,6 +68,9 @@ class VisionChromeEngine:
         self.element_detector = ElementDetectorAgent(
             agent_id="vision_detector", vision_client=vision_client)
 
+        # Initialize OpenAI client as None, will create on demand
+        self.openai_client = None
+
         # UI Context Management
         self.ui_context_manager = UIContextManager()
 
@@ -99,6 +104,8 @@ class VisionChromeEngine:
         print(
             f"🔮 VisionChromeEngine initialized (vision_primary={use_vision_primary})"
         )
+
+        self.all_dom_elements = []
 
     async def initialize(self,
                          headless: bool = False,
@@ -422,6 +429,7 @@ class VisionChromeEngine:
 
                 if element_coords:
                     if action == "click":
+                        #
                         return await self._click_at_coordinates(element_coords)
                     elif action == "type":
                         # Click first, then type
@@ -510,16 +518,24 @@ class VisionChromeEngine:
 
         # 🧠 INTELLIGENT THREE-STAGE PIPELINE
         print(f"    🧠 Using intelligent detection pipeline for: '{target}'")
-
+        #
         try:
             # Stage 1: AI-Powered Instruction Normalization (Fast & Cheap)
-            normalized_targets = await self._normalize_instruction_with_ai(
+            normalized_targets, button_text = await self._normalize_instruction_with_ai(
                 action_plan, target)
             print(f"    🤖 AI normalized '{target}' → {normalized_targets}")
 
             # Stage 2: Enhanced Traditional Detection with normalized terms
-            traditional_coords = await self._try_enhanced_traditional_detection(
-                action_plan, target, normalized_targets)
+            if True:
+                await self._ensure_openai_client()
+            traditional_coords = await find_and_click_most_relevant_element(
+                action_plan["raw_instruction"], button_text,
+                target, normalized_targets, self.page,
+                self.get_all_dom_elements(), self.openai_client)
+            if not traditional_coords:
+                traditional_coords = await self._try_enhanced_traditional_detection(
+                    action_plan, target, normalized_targets, button_text)
+
             if traditional_coords:
                 # Validate coordinates are within viewport bounds
                 if self._validate_coordinates_in_viewport(traditional_coords):
@@ -563,7 +579,7 @@ class VisionChromeEngine:
                         f"    ⚠️ Vision found element outside viewport bounds at ({coords.x}, {coords.y}) - retrying..."
                     )
                     better_coords = await self._find_nearby_interactive_element(
-                        coords, action_plan["action"])
+                        coords, action_plan["action"], target)
                     if better_coords and self._validate_coordinates_in_viewport(
                             better_coords):
                         coords = better_coords
@@ -590,7 +606,7 @@ class VisionChromeEngine:
                     )
                     # Try to find a better element nearby
                     better_coords = await self._find_nearby_interactive_element(
-                        coords, action_plan["action"])
+                        coords, action_plan["action"], target)
                     if better_coords and self._validate_coordinates_in_viewport(
                             better_coords):
                         print(
@@ -652,12 +668,14 @@ class VisionChromeEngine:
             return False
 
     async def _find_nearby_interactive_element(
-            self, coordinates: Coordinates,
-            action: str) -> Optional[Coordinates]:
+            self,
+            coordinates: Coordinates,
+            action: str,
+            target: str = None) -> Optional[Coordinates]:
         """Find an interactive element near the given coordinates."""
         try:
             # For search-related actions, try semantic search first
-            if action == 'click':
+            if action == 'click' and not is_export_action:
                 print(f"    🔄 Trying semantic element search first...")
                 semantic_result = await self.page.evaluate(f"""
                     (() => {{
@@ -763,8 +781,9 @@ class VisionChromeEngine:
             print(f"    ⚠️ Error in nearby element search: {e}")
             return None
 
-    async def _normalize_instruction_with_ai(self, action_plan: Dict[str, Any],
-                                             target: str) -> List[str]:
+    async def _normalize_instruction_with_ai(
+            self, action_plan: Dict[str, Any],
+            target: str) -> Tuple[List[str], str]:
         """Use AI to normalize human language instructions into selector-friendly terms."""
         try:
             action_type = action_plan["action"]
@@ -772,11 +791,13 @@ class VisionChromeEngine:
                 "url": self.page.url,
                 "title": await self.page.title()
             }
+            raw_instruction = action_plan["raw_instruction"]
 
             # Fast, cheap GPT call for instruction normalization
             normalization_prompt = f"""
 You are a UI automation expert. Convert this human language instruction into standardized terms that work well with CSS selectors.
 
+USER GOAL: {raw_instruction}
 INSTRUCTION: "{action_type} on {target}"
 PAGE CONTEXT: {page_context["title"]} ({page_context["url"]})
 
@@ -786,8 +807,13 @@ Provide 3-5 alternative terms/phrases that could represent the same UI element:
 3. Abbreviated forms
 4. Context-appropriate alternatives
 
-Return only a JSON list of strings, no explanation:
-["term1", "term2", "term3", ...]
+If its a 'click' action, provide a string of button texts that could represent the same UI element.
+
+Strcitly return only a JSON object with the following structure, no explanation no comments:
+{{
+    "normalized_targets": ["term1", "term2", "term3", ...],
+    "button_text": "button text variations"
+}}
 
 Examples:
 - "workspaces" → ["workspaces", "workspace", "Workspaces", "work space", "projects"]
@@ -801,25 +827,10 @@ Examples:
                     self.element_detector, 'vision_client'):
                 try:
                     # This is a text-only call, much faster and cheaper than vision
-                    import openai
+                    # Initialize OpenAI client if needed
+                    await self._ensure_openai_client()
 
-                    # Get API key from vision client's internal openai client
-                    vision_client = self.element_detector.vision_client
-                    api_key = vision_client.client.api_key if hasattr(
-                        vision_client.client, 'api_key') else None
-
-                    if not api_key:
-                        # Fallback: try to get from credentials again
-                        from ..utils.credentials_loader import get_openai_credentials
-                        creds = get_openai_credentials()
-                        api_key = creds.get('api_key')
-
-                    if not api_key:
-                        raise ValueError("No API key available")
-
-                    client = openai.AsyncOpenAI(api_key=api_key)
-
-                    response = await client.chat.completions.create(
+                    response = await self.openai_client.chat.completions.create(
                         model=
                         "gpt-4o-mini",  # Fast, cheap model for text processing
                         messages=[{
@@ -830,17 +841,28 @@ Examples:
                         temperature=0.1)
 
                     import json
-                    normalized_list = json.loads(
+                    print(
+                        f"Response from LLM: {response.choices[0].message.content.strip()}"
+                    )
+                    normalized_dict = json.loads(
                         response.choices[0].message.content.strip())
 
                     # Always include the original target
-                    if target not in normalized_list:
-                        normalized_list.insert(0, target)
+                    if target not in normalized_dict["normalized_targets"]:
+                        normalized_dict["normalized_targets"].insert(0, target)
 
-                    return normalized_list[:6]  # Limit to 6 terms max
+                    button_text = normalized_dict["button_text"]
+
+                    return normalized_dict[
+                        "normalized_targets"][:6], normalized_dict[
+                            "button_text"]  # Limit to 6 terms max
 
                 except Exception as e:
-                    print(f"    ⚠️ AI normalization failed: {e}")
+                    import traceback
+                    print(
+                        f"    ⚠️ AI normalization failed: {traceback.format_exc()}"
+                    )
+                    # print(f"    ⚠️ AI normalization failed: {e}")
                     # Fallback to basic normalization
                     return self._basic_normalization(target)
             else:
@@ -848,6 +870,27 @@ Examples:
 
         except Exception:
             return self._basic_normalization(target)
+
+    async def _ensure_openai_client(self) -> None:
+        """Initialize OpenAI client if not already initialized."""
+        if not self.openai_client:
+            import openai
+
+            # Get API key from vision client's internal openai client
+            vision_client = self.element_detector.vision_client
+            api_key = vision_client.client.api_key if hasattr(
+                vision_client.client, 'api_key') else None
+
+            if not api_key:
+                # Fallback: try to get from credentials again
+                from ..utils.credentials_loader import get_openai_credentials
+                creds = get_openai_credentials()
+                api_key = creds.get('api_key')
+
+            if not api_key:
+                raise ValueError("No API key available")
+
+            self.openai_client = openai.AsyncOpenAI(api_key=api_key)
 
     def _basic_normalization(self, target: str) -> List[str]:
         """Basic normalization fallback when AI is not available."""
@@ -1170,12 +1213,12 @@ Examples:
                 },
                 {
                     "selector": f"[href*='{target.lower()}']",
-                    "strategy": "link_href",
+                    "strategy": "link_href_contains",
                     "priority": 6
                 },
             ])
 
-        # Strategy 5: Menu item matching
+        # Strategy 5: Menu item matching - still clickable but more specific
         selectors.extend([
             {
                 "selector": f"[role='menuitem']:has-text('{target}')",
@@ -1189,7 +1232,7 @@ Examples:
             },
         ])
 
-        # Strategy 6: Generic interactive elements
+        # Strategy 6: Other potentially clickable elements with decreasing priority
         selectors.extend([
             {
                 "selector": f"*:has-text('{target}')[onclick]",
@@ -1422,7 +1465,9 @@ Examples:
             return None
 
     async def _click_at_coordinates(self, coordinates: Coordinates) -> bool:
-        """Click at specific coordinates determined by vision with enhanced visual feedback and navigation handling."""
+        """Click at specific coordinates determined by vision with enhanced visual feedback and navigation handling.
+        Also handles file downloads if the click is on a download/export button.
+        """
 
         try:
             # 🎯 VISUAL FEEDBACK: Highlight target area before clicking
@@ -1500,6 +1545,30 @@ Examples:
                     print(
                         f"       Text: {element_info.get('textContent', 'N/A')[:50] or 'None'}"
                     )
+
+                    # Check if this is likely a download button
+                    element_text = element_info.get('textContent', '').lower()
+                    element_aria_label = element_info.get('ariaLabel',
+                                                          '').lower()
+                    element_id = element_info.get('id', '').lower()
+                    element_class = element_info.get('className', '').lower()
+
+                    is_download_button = (
+                        "export" in element_text or "download" in element_text
+                        or "export" in element_aria_label
+                        or "download" in element_aria_label
+                        or "export" in element_id or "download" in element_id
+                        or "export" in element_class
+                        or "download" in element_class
+                        or element_info.get('tagName', '').lower() == "a" and
+                        ("download" in element_info.get('href', '')
+                         or ".csv" in element_info.get('href', '')
+                         or ".xlsx" in element_info.get('href', '')
+                         or ".pdf" in element_info.get('href', '')))
+
+                    if is_download_button:
+                        print(f"    📥 Detected potential download button")
+
                 else:
                     print(
                         f"    ⚠️ No element found at coordinates ({coordinates.x}, {coordinates.y})"
@@ -1551,6 +1620,40 @@ Examples:
             if not click_success:
                 return False
 
+            # Set up download handling if this is a download button
+            download_task = None
+            if element_info and is_download_button:
+                try:
+                    print(
+                        f"    📥 Detected download button click, setting up download handler..."
+                    )
+
+                    # Create downloads directory if it doesn't exist
+                    download_directory = Path.cwd() / "downloads"
+                    download_directory.mkdir(exist_ok=True)
+
+                    # Set up download handler
+                    download_task = asyncio.create_task(
+                        self._handle_download(self.page, download_directory))
+
+                    # Wait a bit for download to initiate
+                    await asyncio.sleep(0.5)
+
+                    # Check for download dialog or download starting indicators
+                    download_started = await self._check_download_started(
+                        self.page)
+
+                    if download_started:
+                        print(f"    ✅ Download indicators detected")
+                    else:
+                        print(
+                            f"    ⚠️ No download indicators detected, but continuing"
+                        )
+
+                except Exception as e:
+                    print(f"    ⚠️ Error setting up download handler: {e}")
+                    # Continue execution even if download handling fails
+
             # 📸 IMMEDIATE POST-CLICK SCREENSHOT
             await self._capture_action_screenshot("click", coordinates)
 
@@ -1559,6 +1662,22 @@ Examples:
 
             # Wait for immediate DOM reactions
             await asyncio.sleep(1.2)  # Longer wait to catch slower responses
+
+            # Wait for download to complete if applicable
+            if download_task:
+                try:
+                    # Wait for download to complete (with timeout)
+                    print(f"    ⏳ Waiting for download to complete...")
+                    try:
+                        await asyncio.wait_for(download_task, timeout=10)
+                        print(f"    ✅ Download completed successfully")
+                    except asyncio.TimeoutError:
+                        print(
+                            f"    ⚠️ Download timeout, but continuing execution"
+                        )
+                except Exception as e:
+                    print(f"    ⚠️ Error handling download: {e}")
+                    # Continue execution even if download handling fails
 
             # Check for any page changes
             current_url = self.page.url
@@ -2051,3 +2170,190 @@ Examples:
             "detection_stats": self.element_detector.get_detection_stats(),
             "llm_stats": self.vision_client.get_usage_stats()
         }
+
+    async def _handle_download(self, page: Page,
+                               download_directory: Path) -> str:
+        """Handle file download and save to local filesystem."""
+        try:
+            print(f"    📥 Setting up download handler...")
+
+            # Create a list to store download objects
+            downloads = []
+
+            # Set up a listener for download events
+            page.on("download", lambda download: downloads.append(download))
+
+            # Wait for download to start (max 10 seconds)
+            start_time = datetime.now()
+            while not downloads and (datetime.now() -
+                                     start_time).total_seconds() < 10:
+                await asyncio.sleep(0.5)
+
+            if not downloads:
+                print(f"    ⚠️ No download detected after waiting")
+                return ""
+
+            # Get the most recent download
+            download = downloads[-1]
+
+            # Get suggested filename
+            suggested_filename = download.suggested_filename
+            print(f"    📄 Download detected: {suggested_filename}")
+
+            # Generate a unique filename if needed
+            if not suggested_filename:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                suggested_filename = f"download_{timestamp}.csv"
+
+            # Construct the full path to save the file
+            save_path = download_directory / suggested_filename
+
+            # Save the file to the local file system
+            await download.save_as(save_path)
+            print(f"    ✅ File downloaded and saved to: {save_path}")
+
+            return str(save_path)
+
+        except Exception as e:
+            print(f"    ⚠️ Error handling download: {e}")
+            return ""
+
+    async def _check_download_started(self, page: Page) -> bool:
+        """Check if download has started."""
+        try:
+            # Check for common download indicators
+            download_indicators = [
+                # Download started notifications
+                "[role='alert']:has-text('download')",
+                "[role='alert']:has-text('export')",
+                ".toast:has-text('download')",
+                ".toast:has-text('export')",
+                ".notification:has-text('download')",
+
+                # Progress indicators
+                "[role='progressbar']",
+                ".progress-bar",
+                "[class*='progress']",
+
+                # Download dialogs
+                "[role='dialog']:has-text('download')",
+                "[role='dialog']:has-text('save')",
+                "[role='dialog']:has-text('file')"
+            ]
+
+            for selector in download_indicators:
+                try:
+                    element = page.locator(selector).first
+                    if await element.is_visible(timeout=500):
+                        print(f"    📥 Download indicator found: {selector}")
+                        return True
+                except Exception:
+                    continue
+
+            # Check URL for download indicators
+            current_url = page.url
+            if "download" in current_url or "export" in current_url or ".csv" in current_url:
+                print(f"    📥 Download URL detected: {current_url}")
+                return True
+
+            return False
+
+        except Exception as e:
+            print(f"    ⚠️ Error checking download status: {e}")
+            return False
+
+    async def get_all_dom_elements(self) -> List[Dict[str, Any]]:
+        """
+        Get all elements in the current DOM with their attributes, text content, and other details.
+        
+        Returns:
+            List of dictionaries containing element details
+        """
+        if self.all_dom_elements:
+            return self.all_dom_elements
+
+        print("Extracting all DOM elements with details...")
+
+        # JavaScript to extract all elements with their details
+        elements_data = await self.page.evaluate("""
+        () => {
+            // Function to get all attributes of an element
+            const getAttributes = (element) => {
+                const attributes = {};
+                for (const attr of element.attributes) {
+                    attributes[attr.name] = attr.value;
+                }
+                return attributes;
+            };
+            
+            // Function to get computed style properties of interest
+            const getComputedStyles = (element) => {
+                const style = window.getComputedStyle(element);
+                return {
+                    display: style.display,
+                    visibility: style.visibility,
+                    position: style.position,
+                    zIndex: style.zIndex,
+                    cursor: style.cursor,
+                    backgroundColor: style.backgroundColor,
+                    color: style.color,
+                    width: style.width,
+                    height: style.height
+                };
+            };
+            
+            // Function to check if element is visible
+            const isVisible = (element) => {
+                const style = window.getComputedStyle(element);
+                return style.display !== 'none' && 
+                       style.visibility !== 'hidden' && 
+                       style.opacity !== '0' &&
+                       element.offsetWidth > 0 &&
+                       element.offsetHeight > 0;
+            };
+            
+            // Function to get element's bounding box
+            const getBoundingBox = (element) => {
+                const rect = element.getBoundingClientRect();
+                return {
+                    x: rect.x,
+                    y: rect.y,
+                    width: rect.width,
+                    height: rect.height,
+                    top: rect.top,
+                    right: rect.right,
+                    bottom: rect.bottom,
+                    left: rect.left
+                };
+            };
+            
+            // Get all elements in the DOM
+            const allElements = document.querySelectorAll('*');
+            
+            // Convert to array and map to get details
+            return Array.from(allElements).map((element, index) => {
+                return {
+                    index: index,
+                    tagName: element.tagName.toLowerCase(),
+                    id: element.id || null,
+                    className: element.className || null,
+                    textContent: element.textContent.trim() || null,
+                    innerText: element.innerText?.trim() || null,
+                    attributes: getAttributes(element),
+                    isVisible: isVisible(element),
+                    boundingBox: getBoundingBox(element),
+                    computedStyle: getComputedStyles(element),
+                    hasChildren: element.childElementCount > 0,
+                    childCount: element.childElementCount,
+                    isInteractive: ['a', 'button', 'input', 'select', 'textarea'].includes(element.tagName.toLowerCase()) || 
+                                   element.onclick != null || 
+                                   element.getAttribute('role') === 'button' ||
+                                   window.getComputedStyle(element).cursor === 'pointer'
+                };
+            });
+        }
+        """)
+
+        print(f"Found {len(elements_data)} elements in the DOM")
+        self.all_dom_elements = elements_data
+        return elements_data

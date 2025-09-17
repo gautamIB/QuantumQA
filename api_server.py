@@ -1077,12 +1077,37 @@ async def get_status():
 # ============================================================================
 
 
-@app.get("/testmo-instructions",
-         summary="Run UI Test and Process Testmo Export")
-async def process_testmo_export():
+class TestmoExportSettings(BaseModel):
+    instruction_file: Optional[
+        str] = "/Users/jeminjain/ProjectsOnGit/QuantumQA/examples/export_testmo_results.txt"
+    input_file: Optional[
+        str] = "/Users/jeminjain/ProjectsOnGit/QuantumQA/downloads/testmo-export-run-87.csv"
+    output_file: Optional[
+        str] = "/Users/jeminjain/ProjectsOnGit/QuantumQA/downloads/testmo-cases.json"
+    generated_file_path: Optional[
+        str] = "/Users/jeminjain/ProjectsOnGit/QuantumQA/generated_instructions/testmo_generated_instructions.txt"
+    headless: bool = True
+    connect_to_existing: bool = False
+    debug_port: int = 9222
+    filter_folder: Optional[str] = "Converse"
+    test_id: Optional[str] = None
+
+
+@app.post("/testmo-instructions",
+          summary="Run UI Test and Process Testmo Export")
+async def process_testmo_export(settings: TestmoExportSettings):
     """
     Run UI test with instructions and then process Testmo export CSV file.
     Returns the generated instruction file text as the result.
+    
+    Parameters:
+    - instruction_file: Path to the instruction file for UI test
+    - input_file: Path to the Testmo export CSV file
+    - output_file: Path to save the processed JSON file
+    - headless: Whether to run Chrome in headless mode
+    - connect_to_existing: Whether to connect to existing Chrome instance
+    - debug_port: Chrome remote debugging port
+    - filter_folder: Filter test cases by folder name (e.g., "Converse")
     """
     try:
         # Import necessary functions
@@ -1091,11 +1116,12 @@ async def process_testmo_export():
         import asyncio
         import json
 
-        # Fixed file paths
-        input_file = "/Users/jeminjain/ProjectsOnGit/QuantumQA/downloads/testmo-export-run-87.csv"
-        output_file = "/Users/jeminjain/ProjectsOnGit/QuantumQA/downloads/testmo-cases.json"
-        instruction_file = "/Users/jeminjain/ProjectsOnGit/QuantumQA/examples/export_testmo_results.txt"
-
+        # Use settings from input
+        logging.info(f"Settings: {settings}")
+        input_file = settings.input_file
+        output_file = settings.output_file
+        instruction_file = settings.instruction_file
+        generated_file_path = settings.generated_file_path
         # Check if files exist
         if not Path(instruction_file).exists():
             raise HTTPException(
@@ -1111,12 +1137,11 @@ async def process_testmo_export():
         # Run the UI test
         ui_test_result = await run_ui_test(
             instruction_file=instruction_file,
-            headless=True,  # Run in headless mode for API server
+            headless=settings.headless,
             credentials_file=None,  # No credentials file needed for this test
             config_dir=None,  # Use default config
-            connect_to_existing=False,  # Try to connect to existing Chrome
-            debug_port=9222  # Default debug port
-        )
+            connect_to_existing=settings.connect_to_existing,
+            debug_port=settings.debug_port)
 
         if not ui_test_result:
             logger.warning("UI test execution returned no results")
@@ -1129,7 +1154,7 @@ async def process_testmo_export():
 
         # Step 2: Process the CSV file after UI test completes
         logger.info(
-            f"Processing Testmo export csv and converting to cases json dict : {input_file} → {output_file}"
+            f"Processing Testmo export csv and converting to cases json dict: {input_file} → {output_file}"
         )
 
         # Check if input file exists after UI test (it might have been created by the test)
@@ -1161,29 +1186,45 @@ async def process_testmo_export():
 
         # Filter for active test cases
         active_test_cases = [tc for tc in test_cases if tc.state == "Active"]
-        converse_folder_test_cases = [
-            tc for tc in active_test_cases if tc.folder == "Converse"
-        ]
 
-        logger.info(
-            f"Found {len(converse_folder_test_cases)} active test cases in the Converse folder"
-        )
+        # Filter by folder if specified
+        if settings.filter_folder:
+            filtered_test_cases = [
+                tc for tc in active_test_cases
+                if tc.folder == settings.filter_folder
+            ]
+            logger.info(
+                f"Found {len(filtered_test_cases)} active test cases in the {settings.filter_folder} folder"
+            )
+        elif settings.test_id:
+            filtered_test_cases = [
+                tc for tc in active_test_cases
+                if tc.test_id == settings.test_id
+            ]
+            logger.info(
+                f"Found {len(filtered_test_cases)} active test cases for test id {settings.test_id}"
+            )
+        else:
+            filtered_test_cases = active_test_cases
+            logger.info(f"Found {len(filtered_test_cases)} active test cases")
+            # truncate to one
+            filtered_test_cases = filtered_test_cases[:1]
 
-        if not converse_folder_test_cases:
+        if not filtered_test_cases:
             raise HTTPException(
                 status_code=404,
-                detail="No active test cases found in the JSON file")
+                detail=
+                f"No active test cases found matching the filter criteria")
 
-        # Generate instructions for all active test cases
+        # Generate instructions for filtered test cases
         try:
             instructions = await processor.format_instructions_with_llm(
-                converse_folder_test_cases)
+                filtered_test_cases)
 
             # Save instructions to a file
-            generated_file_path = "/Users/jeminjain/ProjectsOnGit/QuantumQA/generated_instructions/testmo_generated_instructions.txt"
             with open(generated_file_path, 'w', encoding='utf-8') as f:
                 f.write(instructions)
-
+                f.flush()
             logger.info(
                 f"Successfully generated instructions and saved to {generated_file_path}"
             )

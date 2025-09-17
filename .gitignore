@@ -54,4 +54,4 @@ encryption.key
 Thumbs.db
 generated_instructions/*
 
-logs/*
+logs/

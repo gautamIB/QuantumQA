@@ -95,9 +95,7 @@ class ActionExecutor:
             element_tag = await element.evaluate("el => el.tagName")
 
             # print(f"    👆 Clicking element: '{element_text}' ({element_tag})")
-            print(
-                f"    👆 Clicking element: '{element_text[:100]}' ({element_tag})"
-            )
+            print(f"    👆 Clicking element: '{element_text[:100]}' ({element_tag})")
 
             # Special handling for dropdown items that might need force clicking
             if "dropdown" in options.get("target", "").lower():

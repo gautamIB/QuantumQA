@@ -207,6 +207,7 @@ class TestmoProcessor:
             4. Verify that the user is logged in successfully.
             4. After logging in, Click on Workspaces on the top menu bar.
             
+            Prefix # in the txt before any comment or non-action or not an instruction item
             Each instruction should be clear, concise, and on its own line.
             Focus on creating executable steps that the automation framework can understand.
             Do not include any explanations or comments beyond the actual instructions.
@@ -253,9 +254,11 @@ class TestmoProcessor:
             if isinstance(test_case, List):
                 header = "#Merged Test Cases:\n"
                 for tc in test_case:
-                    header += f"# Test: {tc.test_name}\n# ID: {tc.test_id}\n# Folder: {tc.folder}\n\n"
+                    # header += f"# Test: {tc.test_name}\n# ID: {tc.test_id}\n# Folder: {tc.folder}\n\n"
+                    pass
             else:
-                header = f"# Test: {test_case.test_name}\n# ID: {test_case.test_id}\n# Folder: {test_case.folder}\n\n"
+                # header = f"# Test: {test_case.test_name}\n# ID: {test_case.test_id}\n# Folder: {test_case.folder}\n\n"
+                pass
             formatted_instructions = header + instructions
             num_steps = len(instructions.split('\n'))
             print(f"✅ Generated instructions {num_steps} steps)")

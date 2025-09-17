@@ -1,7 +1,4 @@
-# Complete End-to-End Conversation User Journey
-# Extended workflow based on actual AIHub conversation interface
-
-# === WORKSPACE NAVIGATION ===
+Navigate to https://aihub.instabase.com
 Click on workspaces
 Verify that workspaces page loads successfully
 Verify that page has left panel with workspaces list
