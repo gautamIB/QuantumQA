@@ -24,6 +24,10 @@ const StyledIconButton = styled(IconButton)<TIconButtonProps & { isActive?: bool
   }
 `;
 
+const InstabaseIcon = styled(Instabase)`
+  cursor: pointer;
+`;
+
 const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -46,7 +50,7 @@ const Sidebar: React.FC = () => {
         alignItems="start"
         gap={4}
       >
-        <Instabase size={28} />
+        <InstabaseIcon size={28} onClick={handleTestsClick} />
         <Divider direction="horizontal" size={28} />
         <FlexItem grow={1} shrink={1}>
           <FlexContainer 

@@ -6,8 +6,9 @@ import {
 import { TFormData, TestForm, initialFormData } from '../components/test-form/TestForm';
 import { FORM_LABELS, TEST_KEYS, TEST_OPTIONS, TTest } from '../constants';
 import { TestTopBar } from '../components/top-bar/TestTopBar';
-import { RunTest } from '../components/run-test/RunTest';
+import { RunTest, RunTestFormData } from '../components/run-test/RunTest';
 import styled from 'styled-components';
+import { useRunTest } from '../api/useRunTest';
 
 const Container = styled(FlexContainer)`
   min-height: 100vh;
@@ -17,6 +18,7 @@ const Container = styled(FlexContainer)`
 
 export const ViewTest: React.FC<{ test: TTest }> = ({ test }) => {
   const [formData, setFormData] = useState<TFormData>(initialFormData);
+  const { mutateAsync: runTest, isLoading } = useRunTest();
 
   useEffect(() => {
     setFormData({
@@ -28,6 +30,13 @@ export const ViewTest: React.FC<{ test: TTest }> = ({ test }) => {
   }, [test]);
 
   const [isRunTestModalOpen, setIsRunTestModalOpen] = useState(false);
+
+  const onRunTest = async (formData: RunTestFormData) => {
+    await runTest({ formData, test });
+    setIsRunTestModalOpen(false);
+  };
+
+  const onClose = () => setIsRunTestModalOpen(false);
 
   return (
     <>
@@ -46,10 +55,12 @@ export const ViewTest: React.FC<{ test: TTest }> = ({ test }) => {
       </Container>
       {isRunTestModalOpen && (
         <RunTest 
-            isOpen={isRunTestModalOpen}
-            onClose={() => setIsRunTestModalOpen(false)}
-            onRunTest={() => {}}
-            testName={test[TEST_KEYS.TEST_NAME]}
+          isOpen={isRunTestModalOpen}
+          onClose={onClose}
+          onRunTest={onRunTest}
+          testName={test[TEST_KEYS.TEST_NAME]}
+          testType={test[TEST_KEYS.TEST_TYPE]}
+          isLoading={isLoading}
         />
       )}
     </>

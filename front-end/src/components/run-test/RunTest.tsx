@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Input, Modal } from '@instabase.com/pollen';
+import { TEST_OPTIONS } from '../../constants';
 
 export interface RunTestFormData {
   runName: string;
   testUrl: string;
   userName: string;
   password: string;
+  apiKey: string;
 }
 
 export interface RunTestProps {
@@ -13,19 +15,24 @@ export interface RunTestProps {
   onClose: () => void;
   onRunTest: (formData: RunTestFormData) => void;
   testName: string;
+  testType: string;
+  isLoading: boolean;
 }
 
 export const RunTest: React.FC<RunTestProps> = ({
   isOpen,
   onClose,
   onRunTest,
-  testName = ''
+  testName = '',
+  testType = '',
+  isLoading = false
 }) => {
   const [formData, setFormData] = useState<RunTestFormData>({
     runName: '',
     testUrl: '',
     userName: '',
-    password: ''
+    password: '',
+    apiKey: ''
   });
 
   const handleInputChange = (field: keyof RunTestFormData, value: string) => {
@@ -37,7 +44,6 @@ export const RunTest: React.FC<RunTestProps> = ({
 
   const handleRunTest = () => {
     onRunTest(formData);
-    onClose();
   };
 
   const handleCancel = () => {
@@ -95,7 +101,21 @@ export const RunTest: React.FC<RunTestProps> = ({
             placeholder=""
             fullWidth
             required
+            mb={5}
         />
+        {testType === TEST_OPTIONS.API_TEST && (
+          <Input
+            label="API Key"
+            value={formData.apiKey}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                handleInputChange('apiKey', e.target.value)
+            }
+            type="password"
+            placeholder=""
+            fullWidth
+            required
+          />
+        )}
       </Modal.Body>
 
       <Modal.Footer
@@ -105,11 +125,14 @@ export const RunTest: React.FC<RunTestProps> = ({
         confirmButtonProps={{
           label: 'Run test',
           intent: 'primary',
-          disabled: !formData.runName || !formData.testUrl || !formData.userName || !formData.password,
+          disabled: !formData.runName || !formData.testUrl || !formData.userName || !formData.password || isLoading,
+          loading: isLoading,
         }}
         cancelButtonProps={{
           label: 'Cancel',
           intent: 'secondary',
+          disabled: isLoading,
+          loading: isLoading,
         }}
       />
     </Modal>

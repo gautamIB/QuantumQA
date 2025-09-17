@@ -103,7 +103,7 @@ export const TestForm = ({
                 value={formData[FORM_LABELS.STEPS]}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleInputChange(FORM_LABELS.STEPS, e.target.value)}
                 rows={20}
-                label="Detailed steps from test mo."
+                label={formData[FORM_LABELS.TEST_TYPE] === TEST_OPTIONS.TEST_MO ? "Detailed steps from test mo" : "Detailed steps"}
                 fullWidth
                 disabled={formData[FORM_LABELS.TEST_TYPE] === TEST_OPTIONS.TEST_MO || isReadOnly}
               />
