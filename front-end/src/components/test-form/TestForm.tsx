@@ -1,0 +1,113 @@
+import React from 'react';
+import { FlexContainer, FlexItem, Input, Select, TextArea } from "@instabase.com/pollen";
+import { Box } from "@instabase.com/pollen";
+import styled from 'styled-components';
+import { TEST_OPTIONS } from "../../constants";
+import { FORM_LABELS } from "../../constants";
+
+const FormContainer = styled(Box)`
+  width: 690px;
+  margin: 24px auto;
+`;
+  
+const TEST_OPTIONS_DESCRIPTION_MAP = {
+  [TEST_OPTIONS.TEST_MO]: 'Re use the test-cases already defined in your test-mo',
+  [TEST_OPTIONS.END_TO_END_TEST]: 'Test your complete user flow on UI',
+  [TEST_OPTIONS.API_TEST]: 'Test your API calls, with YAML a file',
+}
+
+export const TEST_OPTIONS_LABEL_MAP = {
+  [TEST_OPTIONS.TEST_MO]: 'Test mo',
+  [TEST_OPTIONS.END_TO_END_TEST]: 'End to end test',
+  [TEST_OPTIONS.API_TEST]: 'API Test',
+}
+  
+export interface TFormData {
+  [FORM_LABELS.TEST_NAME]: string;
+  [FORM_LABELS.TEST_TYPE]: string;
+  [FORM_LABELS.TEST_MO_URL]?: string;
+  [FORM_LABELS.STEPS]: string;
+}
+
+export const initialFormData: TFormData = {
+  [FORM_LABELS.TEST_NAME]: '',
+  [FORM_LABELS.TEST_TYPE]: TEST_OPTIONS.TEST_MO,
+  [FORM_LABELS.TEST_MO_URL]: '',
+  [FORM_LABELS.STEPS]: '',
+}
+
+export const TestForm = ({
+    formData,
+    setFormData,
+    isReadOnly = false,
+}: {
+    formData: TFormData;
+    setFormData: React.Dispatch<React.SetStateAction<TFormData>>;
+    isReadOnly?: boolean;
+}) => {
+
+  const handleInputChange = (field: keyof TFormData, value: string) => {
+    setFormData((prev: TFormData) => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+    return (
+        <FormContainer>
+            <FlexContainer gap={5}>
+              {!isReadOnly && (
+                <FlexItem grow={1} shrink={1}>
+                    <Input
+                    placeholder="Some name"
+                    value={formData[FORM_LABELS.TEST_NAME]}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange(FORM_LABELS.TEST_NAME, e.target.value)}
+                    label="Test name"
+                    required
+                    fullWidth
+                    />
+                </FlexItem>
+              )}
+              <FlexItem grow={1} shrink={1}>
+                <Select
+                  selected={formData[FORM_LABELS.TEST_TYPE]}
+                  selectedText={(selected: TEST_OPTIONS) => TEST_OPTIONS_LABEL_MAP[selected]}
+                  onSelect={(value: string) => handleInputChange(FORM_LABELS.TEST_TYPE, value)}
+                  options={Object.keys(TEST_OPTIONS_LABEL_MAP)}
+                  placeholder="Select test type"
+                  label="Type of test"
+                  optionRenderProps={({ value }: { value: TEST_OPTIONS }) => ({
+                    label: TEST_OPTIONS_LABEL_MAP[value],
+                    description: TEST_OPTIONS_DESCRIPTION_MAP[value],
+                  })}
+                  fullWidth
+                  disabled={isReadOnly}
+                />
+              </FlexItem>
+            </FlexContainer>
+            {formData[FORM_LABELS.TEST_TYPE] === TEST_OPTIONS.TEST_MO && (
+              <Box mt={4}>
+                <Input
+                  placeholder="https://..."
+                  value={formData[FORM_LABELS.TEST_MO_URL]}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange(FORM_LABELS.TEST_MO_URL, e.target.value)}
+                  type="url"
+                  label="Test mo's folder URL"
+                  fullWidth
+                  disabled={isReadOnly}
+                />
+              </Box>
+            )}
+            <Box mt={4}>
+              <TextArea
+                placeholder="Enter the steps"
+                value={formData[FORM_LABELS.STEPS]}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleInputChange(FORM_LABELS.STEPS, e.target.value)}
+                rows={20}
+                label="Detailed steps from test mo."
+                fullWidth
+                disabled={formData[FORM_LABELS.TEST_TYPE] === TEST_OPTIONS.TEST_MO || isReadOnly}
+              />
+            </Box>
+          </FormContainer>
+    );
+};
