@@ -1,9 +1,10 @@
 import React from 'react';
-import { FlexContainer, FlexItem, Input, Select, TextArea } from "@instabase.com/pollen";
+import { Button, FlexContainer, FlexItem, Input, Select, TextArea } from "@instabase.com/pollen";
 import { Box } from "@instabase.com/pollen";
 import styled from 'styled-components';
 import { TEST_OPTIONS } from "../../constants";
 import { FORM_LABELS } from "../../constants";
+import { useTestmoSteps } from '../../api/useTestmoSteps';
 
 const FormContainer = styled(Box)`
   width: 690px;
@@ -25,7 +26,7 @@ export const TEST_OPTIONS_LABEL_MAP = {
 export interface TFormData {
   [FORM_LABELS.TEST_NAME]: string;
   [FORM_LABELS.TEST_TYPE]: string;
-  [FORM_LABELS.TEST_MO_URL]?: string;
+  [FORM_LABELS.TEST_MO_URL]: string;
   [FORM_LABELS.STEPS]: string;
 }
 
@@ -45,6 +46,7 @@ export const TestForm = ({
     setFormData: React.Dispatch<React.SetStateAction<TFormData>>;
     isReadOnly?: boolean;
 }) => {
+  const { mutateAsync: getTestmoSteps, isLoading } = useTestmoSteps();
 
   const handleInputChange = (field: keyof TFormData, value: string) => {
     setFormData((prev: TFormData) => ({
@@ -85,17 +87,28 @@ export const TestForm = ({
               </FlexItem>
             </FlexContainer>
             {formData[FORM_LABELS.TEST_TYPE] === TEST_OPTIONS.TEST_MO && (
-              <Box mt={4}>
-                <Input
-                  placeholder="https://..."
-                  value={formData[FORM_LABELS.TEST_MO_URL]}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange(FORM_LABELS.TEST_MO_URL, e.target.value)}
-                  type="url"
-                  label="Test mo's folder URL"
-                  fullWidth
-                  disabled={isReadOnly}
-                />
-              </Box>
+              <FlexContainer gap={2} mt={4} alignItems="flex-end">
+                <FlexItem grow={1} shrink={1}>
+                  <Input
+                    placeholder="https://..."
+                    value={formData[FORM_LABELS.TEST_MO_URL]}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange(FORM_LABELS.TEST_MO_URL, e.target.value)}
+                    type="url"
+                    label="Test mo's folder URL"
+                    fullWidth
+                    disabled={isReadOnly}
+                  />
+                </FlexItem>
+                <FlexItem>
+                  <Button
+                    intent="primary"
+                    label="Get steps"
+                    onClick={() => getTestmoSteps(formData[FORM_LABELS.TEST_MO_URL])}
+                    loading={isLoading}
+                    disabled={isReadOnly || !formData[FORM_LABELS.TEST_MO_URL]}
+                  />
+                </FlexItem>
+              </FlexContainer>
             )}
             <Box mt={4}>
               <TextArea

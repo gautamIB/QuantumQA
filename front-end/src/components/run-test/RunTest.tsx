@@ -65,7 +65,6 @@ export const RunTest: React.FC<RunTestProps> = ({
             required
             mb={5}
         />
-
         <Input
             label="Test URL"
             value={formData.testUrl}
@@ -74,31 +73,6 @@ export const RunTest: React.FC<RunTestProps> = ({
             }
             placeholder="https://..."
             type="url"
-            fullWidth
-            required
-            mb={5}
-        />
-
-        <Input
-            label="User name"
-            value={formData.userName}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
-                handleInputChange('userName', e.target.value)
-            }
-            placeholder=""
-            fullWidth
-            required
-            mb={5}
-        />
-
-        <Input
-            label="Password"
-            value={formData.password}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
-                handleInputChange('password', e.target.value)
-            }
-            type="password"
-            placeholder=""
             fullWidth
             required
             mb={5}
@@ -114,10 +88,32 @@ export const RunTest: React.FC<RunTestProps> = ({
             placeholder=""
             fullWidth
             required
+            mb={5}
           />
         )}
+        <Input
+            label="User name"
+            value={formData.userName}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                handleInputChange('userName', e.target.value)
+            }
+            placeholder=""
+            fullWidth
+            required
+            mb={5}
+        />
+        <Input
+            label="Password"
+            value={formData.password}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                handleInputChange('password', e.target.value)
+            }
+            type="password"
+            placeholder=""
+            fullWidth
+            required
+        />
       </Modal.Body>
-
       <Modal.Footer
         fullWidth={true}
         onCancel={handleCancel}
@@ -125,7 +121,7 @@ export const RunTest: React.FC<RunTestProps> = ({
         confirmButtonProps={{
           label: 'Run test',
           intent: 'primary',
-          disabled: !formData.runName || !formData.testUrl || !formData.userName || !formData.password || isLoading,
+          disabled: !formData.runName || !formData.testUrl || !formData.userName || !formData.password || (testType === TEST_OPTIONS.API_TEST && !formData.apiKey) || isLoading,
           loading: isLoading,
         }}
         cancelButtonProps={{

@@ -19,6 +19,7 @@ export enum API_ENDPOINTS {
     GET_RUN_REPORT = '/report',
     GET_RUN_LOGS = '/logs',
     CREATE_RUN = '/runs',
+    GET_TESTMO_STEPS = '/testmo-instructions',
 };
 
 export enum TEST_OPTIONS {

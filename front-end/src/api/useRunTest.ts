@@ -32,7 +32,7 @@ export const useRunTest = () => {
             }),
           });
         },
-        onSuccess: async (_response, {formData}: {formData: RunTestFormData}) => {
+        onSuccess: async (_response, { formData }: {formData: RunTestFormData}) => {
           await queryClient.invalidateQueries({ queryKey: [API_KEYS.RUNS] });
           navigate(`${ROUTES.RUNS}/${formData.runName}`);
         },
