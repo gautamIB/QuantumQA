@@ -26,6 +26,7 @@ share/python-wheels/
 venv/
 env/
 ENV/
+quantumqa_venv/
 
 # Test results and screenshots
 test_results/

@@ -124,22 +124,62 @@ class VisionLLMClient:
         previous_action = context.get('previous_action', 'None')
         page_title = context.get('title', 'Unknown')
         
+        # Check for UI context (dropdown, modal, etc.)
+        ui_context_type = context.get('ui_context_type')
+        ui_context_target = context.get('ui_context_target')
+        ui_context_opened_step = context.get('ui_context_opened_step')
+        search_scope = context.get('search_scope')
+        
+        # Build the base prompt
         prompt = f"""
 Analyze this webpage screenshot to help execute the instruction: "{instruction}"
 
 **Page Context:**
 - URL: {url}
 - Title: {page_title}
-- Previous action: {previous_action}
+- Previous action: {previous_action}"""
+        
+        # Add UI context information if available
+        if ui_context_type and search_scope:
+            prompt += f"""
 
-**Task:** Find the UI element(s) that should be interacted with to execute the instruction.
+**🎯 IMPORTANT UI CONTEXT:**
+- A {ui_context_type} was opened in a previous step (step {ui_context_opened_step})
+- Target element: {ui_context_target}
+- SCOPE REQUIREMENT: {search_scope}
+
+**SEARCH STRATEGY:**
+- First, identify the {ui_context_type} region that was previously opened
+- Look for the {ui_context_type} containing options/buttons related to "{ui_context_target}"
+- ONLY search within that {ui_context_type} region for the target element
+- DO NOT click elements outside the {ui_context_type} region
+- If multiple {ui_context_type}s exist, choose the one that matches the context from step {ui_context_opened_step}"""
+        
+        prompt += f"""
+
+**Task:** Find the UI element(s) that should be interacted with to execute the instruction."""
+        
+        # Add specific instructions for context-aware search
+        if ui_context_type:
+            prompt += f"""
+
+**Context-Aware Instructions:**
+1. FIRST: Locate the {ui_context_type} region that was opened previously
+2. THEN: Search within that {ui_context_type} for the target element
+3. Provide precise coordinates ONLY for elements within the {ui_context_type}
+4. Ignore similar elements outside the {ui_context_type}
+5. Assess confidence based on element being in correct context"""
+        else:
+            prompt += """
 
 **Instructions:**
 1. Identify the most relevant UI element for the given instruction
 2. Provide precise bounding box coordinates (x, y, width, height)
 3. Include center coordinates for clicking
 4. Assess confidence level (0.0-1.0)
-5. Identify element type and any visible text
+5. Identify element type and any visible text"""
+        
+        prompt += """
 
 **Response Format (JSON only):**
 {{
@@ -152,25 +192,54 @@ Analyze this webpage screenshot to help execute the instruction: "{instruction}"
             "confidence": 0.95,
             "visible_text": "text content if any",
             "attributes": {{"class": "button-class", "placeholder": "hint text"}},
-            "interaction_type": "click|type|hover|scroll"
+            "interaction_type": "click|type|hover|scroll\""""
+        
+        # Add context-specific fields if UI context exists
+        if ui_context_type:
+            prompt += f""",
+            "ui_context_match": "true|false - whether element is in correct {ui_context_type}",
+            "context_region": {{"x": 0, "y": 0, "width": 0, "height": 0}} // bounding box of the {ui_context_type} region"""
+        
+        prompt += """
         }}
     ],
     "page_analysis": {{
         "layout_type": "form|dashboard|list|search|landing|etc",
         "main_content_area": {{"x": 0, "y": 0, "width": 0, "height": 0}},
         "notable_elements": ["list of other important elements visible"],
-        "potential_issues": ["any automation challenges detected"]
+        "potential_issues": ["any automation challenges detected"]"""
+        
+        # Add context analysis if UI context exists
+        if ui_context_type:
+            prompt += f""",
+        "ui_context_analysis": {{
+            "context_type": "{ui_context_type}",
+            "context_found": "true|false",
+            "context_region": {{"x": 0, "y": 0, "width": 0, "height": 0}},
+            "context_confidence": 0.95
+        }}"""
+        
+        prompt += """
     }},
     "overall_confidence": 0.85,
     "recommendation": "Primary action to take based on analysis"
 }}
 
-**Important:** 
+**Important:** """
+        
+        # Add context-specific importance notes
+        if ui_context_type:
+            prompt += f"""
+- CRITICAL: Element MUST be within the {ui_context_type} that was opened in step {ui_context_opened_step}
+- Ignore any similar elements outside the {ui_context_type} region
+- If no suitable element found in {ui_context_type}, set confidence to 0.0"""
+        
+        prompt += """
 - Be precise with coordinates - they will be used for automation
 - If multiple similar elements exist, choose the most appropriate one
 - Consider context and typical user workflows
-- Return ONLY valid JSON, no additional text
-"""
+- Return ONLY valid JSON, no additional text"""
+        
         
         return prompt
     

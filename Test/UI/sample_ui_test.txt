@@ -1,0 +1,4 @@
+Navigate to https://google.com
+Click on search box
+Type hello world
+Verify page loads successfully

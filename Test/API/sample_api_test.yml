@@ -1,0 +1,16 @@
+name: Sample API Test
+base_url: https://jsonplaceholder.typicode.com
+tests:
+  - name: Get Posts
+    method: GET
+    endpoint: /posts
+    expected_status: 200
+  - name: Create Post
+    method: POST
+    endpoint: /posts
+    headers:
+      Content-Type: application/json
+    body:
+      title: Test Post
+      body: Test content
+    expected_status: 201

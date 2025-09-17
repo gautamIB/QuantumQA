@@ -1,0 +1,24 @@
+2025-09-16 17:34:53,604 - api_complete - INFO - Retrieved 0/0 test configurations
+2025-09-16 17:34:57,211 - api_complete - INFO - Created test configuration: Test/UI/sample_ui_test.txt
+2025-09-16 17:35:59,001 - api_complete - INFO - Retrieved 1/1 test configurations
+2025-09-16 17:37:37,053 - api_complete - INFO - Retrieved 0/0 test runs
+2025-09-16 17:37:39,244 - api_complete - INFO - Created test configuration: Test/API/sample_api_test.yml
+2025-09-16 17:37:45,062 - api_complete - INFO - Retrieved 2/2 test configurations
+2025-09-17 10:02:04,254 - api_complete - INFO - Retrieved 0/0 credentials
+2025-09-17 10:02:10,980 - api_complete - INFO - Saved credential: 18b7a7d8-3082-48b1-aef2-e45526d3c72a
+2025-09-17 10:02:10,980 - api_complete - INFO - Created encrypted credentials: 18b7a7d8-3082-48b1-aef2-e45526d3c72a
+2025-09-17 10:02:12,418 - api_complete - INFO - Saved credential: 547359e6-f392-4e52-ba7c-eb9cb01825e4
+2025-09-17 10:02:12,418 - api_complete - INFO - Created encrypted credentials: 547359e6-f392-4e52-ba7c-eb9cb01825e4
+2025-09-17 10:02:18,419 - api_complete - INFO - Retrieved 2/2 credentials
+2025-09-17 10:02:27,319 - api_complete - INFO - Tested credential 18b7a7d8-3082-48b1-aef2-e45526d3c72a: URL accessible, status: 200
+2025-09-17 10:02:27,851 - api_complete - INFO - Retrieved 1/1 credentials
+2025-09-17 10:02:46,855 - api_complete - INFO - Started test run: test_with_stored_creds
+2025-09-17 10:02:46,857 - api_complete - INFO - Executing command: python quantumqa_runner.py Test/UI/sample_ui_test.txt --type ui --credentials logs/test_with_stored_creds_creds.yaml --visible
+2025-09-17 10:09:40,635 - api_complete - INFO - Created test configuration: Test/UI/conversation_flow.txt
+2025-09-17 10:10:42,645 - api_complete - INFO - Retrieved 3/3 test configurations
+2025-09-17 10:11:48,994 - api_complete - INFO - Retrieved 3/3 test configurations
+2025-09-17 10:13:00,557 - api_complete - INFO - Deleted test configuration: Test/UI/conversation_flow.txt
+2025-09-17 10:13:03,974 - api_complete - INFO - Retrieved 2/2 test configurations
+2025-09-17 10:18:31,493 - api_complete - INFO - Started test run: login_test_run_1
+2025-09-17 10:18:31,497 - api_complete - INFO - Executing command: python quantumqa_runner.py Test/UI/sample_ui_test.txt --type ui --credentials logs/login_test_run_1_creds.yaml --visible
+2025-09-17 10:19:16,514 - api_complete - INFO - Retrieved 2/2 test runs
