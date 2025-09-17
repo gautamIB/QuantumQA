@@ -3,9 +3,34 @@
 
 # COMBINED ACTIONS (HIGHEST PRIORITY - Must come first!)
 type:
-  # Combined click and type action (highest priority)
+  # Enhanced combined click and type actions (highest priority)
   - regex: "click on (.+?)\\s+and type\\s+[\"']([^\"']+)[\"']"
-    description: "Click element and type text"
+    description: "Click element and type text (simple quotes)"
+    extractor:
+      target: 1
+      text: 2
+      combined_action: true
+      
+  # Complex combined action with nested quotes and descriptions
+  - regex: "click on (.+?)\\s+and type\\s+[\"\"'](.+?)[\"\"']"
+    description: "Click element and type text (smart quotes)"
+    extractor:
+      target: 1
+      text: 2
+      combined_action: true
+      
+  # Text area specific combined action
+  - regex: "click on\\s+(?:text\\s+area|textarea)\\s+(.+?)\\s+and type\\s+[\"\"'](.+?)[\"\"']"
+    description: "Click text area and type text"
+    extractor:
+      target: 1
+      text: 2
+      combined_action: true
+      field_type: "textarea"
+      
+  # Generic complex click and type with any quotes
+  - regex: "click on (.+?)\\s+and type\\s+(.+?)$"
+    description: "Click element and type text (no quotes required)"
     extractor:
       target: 1
       text: 2
@@ -261,3 +286,24 @@ scroll:
     description: "Scroll to top"
     extractor:
       direction: "top"
+
+press_enter:
+  - regex: "press\\s+enter"
+    description: "Press Enter key"
+    extractor:
+      key: "Enter"
+  
+  - regex: "hit\\s+enter"
+    description: "Hit Enter key"
+    extractor:
+      key: "Enter"
+  
+  - regex: "press\\s+return"
+    description: "Press Return key"
+    extractor:
+      key: "Enter"
+  
+  - regex: "submit\\s+(?:form|input)?"
+    description: "Submit form by pressing Enter"
+    extractor:
+      key: "Enter"

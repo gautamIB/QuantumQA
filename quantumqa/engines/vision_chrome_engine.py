@@ -569,6 +569,11 @@ class VisionChromeEngine:
                     return False
                 return await self.action_executor.upload_file(self.page, file_path)
             
+            elif action == "press_enter":
+                # Press Enter key with optional navigation waiting
+                press_options = action_plan.get("press_options", {})
+                return await self.action_executor.press_enter(self.page, press_options)
+            
             elif action == "comment":
                 print(f"    📝 Comment: {action_plan.get('raw_instruction', '')}")
                 return True

@@ -24,15 +24,22 @@ Verify that processing screen disappears when complete
 
 # === CONVERSATION INTERACTION - FIRST MESSAGE ===
 Click on "Query your files" text area in the bottom right panel and type "Summarise this document in 100 words in Spanish"
-Click send button or press Enter
+Press Enter
 
 # === STREAMING RESPONSE VERIFICATION ===
 Wait for AI response to start streaming in the right panel
 Verify that response text appears gradually (streaming effect)
 Wait for streaming response to complete fully
 
-## === CONVERSATION DROPDOWN MENU VERIFICATION and DELETE ===
-Verify that top left shows conversation name and a dropdown arrow with arrow pointing down
-Click on dropdown arrow
-Verify that dropdown shows options: "Create Conversation", "Clear Chat History", "Recent Conversations", "Digitization Settings", "Delete Conversation"
-Click on "Delete Conversation" from the dropdown menu
+# === CONVERSATION INTERACTION - SECOND MESSAGE ===
+Click on "Query your files" text area in the bottom right panel and type "Summarise this document in 100 words in English"
+Press Enter
+
+# === STREAMING RESPONSE VERIFICATION ===
+Wait for AI response to start streaming in the right panel
+Verify that response text appears gradually (streaming effect)
+Wait for streaming response to complete fully
+
+## === CONVERSATION DROPDOWN MENU VERIFICATION and RENAME ===
+Click on conversation name with arrow pointing down from top left panel and type "QuantumQA"
+Press Enter

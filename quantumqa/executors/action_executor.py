@@ -293,6 +293,37 @@ class ActionExecutor:
             print(f"    ❌ Verification error: {e}")
             return False
     
+    async def press_enter(self, page: Page, options: Dict[str, Any] = None) -> bool:
+        """Press Enter key to submit forms or trigger actions."""
+        
+        options = options or {}
+        wait_for_navigation = options.get("wait_for_navigation", True)
+        
+        try:
+            print(f"    ⌨️ Pressing Enter key")
+            
+            # Press the Enter key
+            await page.keyboard.press("Enter")
+            
+            # Wait for potential page changes if requested
+            if wait_for_navigation:
+                print(f"    ⏳ Waiting for page stability...")
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=5000)
+                except:
+                    # Fallback to shorter wait if networkidle fails
+                    await asyncio.sleep(2)
+            else:
+                # Brief pause to let UI react
+                await asyncio.sleep(0.5)
+            
+            print(f"    ✅ Enter key pressed successfully")
+            return True
+            
+        except Exception as e:
+            print(f"    ❌ Press Enter error: {e}")
+            return False
+    
     async def wait(self, page: Page, wait_type: str, duration: int = 2) -> bool:
         """Wait for condition with intelligent handling."""
         

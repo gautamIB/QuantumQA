@@ -309,6 +309,11 @@ class ChromeEngine:
                     verification_options
                 )
             
+            elif action == "press_enter":
+                # Press Enter key with optional navigation waiting
+                press_options = action_plan.get("press_options", {})
+                success = await self.action_executor.press_enter(self.page, press_options)
+            
             elif action == "wait":
                 success = await self.action_executor.wait(
                     self.page,
