@@ -19,6 +19,7 @@ from typing import List, Dict, Any, Optional, Union
 from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks, Form, Query, Depends
 from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, validator
 import uvicorn
 from cryptography.fernet import Fernet
@@ -1678,10 +1679,33 @@ async def test_credential_connection(credential_id: str, test_url: str = Query(.
         logger.error(f"Error testing credential {credential_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to test credential: {str(e)}")
 
+# Serve the React app for all UI routes (catch-all)
+@app.get("/ui/{path:path}")
+async def serve_ui(path: str):
+    """Serve the React frontend for all UI routes"""
+    from fastapi.responses import FileResponse
+    import os
+    
+    # Try to serve the requested file first
+    file_path = os.path.join("front-end/build", path)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+    
+    # For all other routes, serve index.html (SPA fallback)
+    return FileResponse("front-end/build/index.html")
+
+# Serve the root UI route
+@app.get("/ui")
+async def serve_ui_root():
+    """Serve the React frontend for the root UI route"""
+    from fastapi.responses import FileResponse
+    return FileResponse("front-end/build/index.html")
+
 if __name__ == "__main__":
     print("🚀 Starting QuantumQA API Server...")
     print(f"📍 Server will be available at: http://0.0.0.0:8000")
     print(f"📚 API Documentation: http://0.0.0.0:8000/docs")
+    print(f"📂 Front-end will be available at: http://0.0.0.0:8000/ui")
     
     uvicorn.run(
         "api_complete:app",

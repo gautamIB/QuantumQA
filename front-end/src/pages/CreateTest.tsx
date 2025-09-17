@@ -4,24 +4,23 @@ import {
   FlexContainer,
   FlexItem,
 } from '@instabase.com/pollen';
-import { TFormData, TestForm } from '../components/test-form/TestForm';
-import { FORM_LABELS, TEST_OPTIONS } from '../constants';
+import { TFormData, TestForm, initialFormData } from '../components/test-form/TestForm';
+import { FORM_LABELS } from '../constants';
+import { useCreateTest } from '../api/useCreateTest';
+import styled from 'styled-components';
 
-const initialFormData: TFormData = {
-  [FORM_LABELS.TEST_NAME]: '',
-  [FORM_LABELS.TEST_TYPE]: TEST_OPTIONS.TEST_MO,
-  [FORM_LABELS.FOLDER_URL]: '',
-  [FORM_LABELS.DETAILED_STEPS]: '',
-}
+const Container = styled(FlexContainer)`
+  min-height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
+`;
 
 export const CreateTest: React.FC = () => {
-  
+  const { mutateAsync: createTest, isLoading } = useCreateTest();
   const [formData, setFormData] = useState<TFormData>(initialFormData);
 
-  const handleCreateTest = () => {
-    // TODO: Implement actual test creation logic
-    console.log('Creating test with data:', formData);
-    
+  const handleCreateTest = async () => {
+    await createTest(formData);
     // Reset form
     setFormData(initialFormData);
   };
@@ -29,10 +28,10 @@ export const CreateTest: React.FC = () => {
   const isFormValid = formData[FORM_LABELS.TEST_NAME].trim().length > 0;
 
   return (
-      <FlexContainer direction="column">
+      <Container direction="column">
         <CreateTopBar
           handleCreate={handleCreateTest}
-          isCreateDisabled={!isFormValid}
+          isDisabled={!isFormValid || isLoading}
         />
         <FlexItem grow={1} shrink={1}>
           <TestForm
@@ -40,6 +39,6 @@ export const CreateTest: React.FC = () => {
             setFormData={setFormData}
           />
         </FlexItem>
-      </FlexContainer>
+      </Container>
   );
 };

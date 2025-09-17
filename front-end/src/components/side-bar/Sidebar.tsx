@@ -38,7 +38,7 @@ const Sidebar: React.FC = () => {
 
   return (
     <StyledSidebar
-      width="48px"
+      minWidth="48px"
       minHeight="100vh"
     >
       <FlexContainer 
@@ -46,10 +46,8 @@ const Sidebar: React.FC = () => {
         alignItems="start"
         gap={4}
       >
-        {/* Logo Section */}
-        <Instabase size={30} />
+        <Instabase size={28} />
         <Divider direction="horizontal" size={28} />
-        {/* Navigation Icons */}
         <FlexItem grow={1} shrink={1}>
           <FlexContainer 
             direction="column" 

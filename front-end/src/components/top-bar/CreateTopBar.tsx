@@ -17,12 +17,12 @@ const StyledButton = styled(Button)<TButtonProps>`
 
 interface CreateTopBarProps {
   handleCreate?: () => void;
-  isCreateDisabled?: boolean;
+  isDisabled?: boolean;
 }
 
 export const CreateTopBar: React.FC<CreateTopBarProps> = ({ 
   handleCreate, 
-  isCreateDisabled = false 
+  isDisabled = false,
 }) => {
   const navigate = useNavigate();
 
@@ -48,7 +48,7 @@ export const CreateTopBar: React.FC<CreateTopBarProps> = ({
               label="Create" 
               onClick={handleCreate} 
               intent="primary"
-              disabled={isCreateDisabled}
+              disabled={isDisabled}
             />
           </FlexContainer>
         }

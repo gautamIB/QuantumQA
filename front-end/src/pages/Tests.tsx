@@ -1,25 +1,47 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { NoTestsAvailable } from '../components/no-tests-available/NoTestsAvailable';
-import { ROUTES } from '../constants';
+import { ROUTES, TEST_KEYS } from '../constants';
 import { Outlet, useMatch, useNavigate } from "react-router";
 import { AllTests } from '../components/all-tests/AllTests';
-import { FlexContainer, FlexItem } from '@instabase.com/pollen';
-import { TESTS } from '../data';
-import { TTest } from '../constants';
+import { FlexContainer, FlexItem, Spinner } from '@instabase.com/pollen';
+import styled from 'styled-components';
+import { GenericError } from '@instabase.com/pollen/illustration';
+import { useTests } from '../api/useTests';
+
+const StyledFlexContainer = styled(FlexContainer)`
+  height: 100vh;
+`;
 
 export const Tests: React.FC = () => {
-  const [tests, setTests] = useState<TTest[]>(TESTS);
+  const { data: tests, isLoading, error } = useTests();
+
   const navigate = useNavigate();
-  const match = useMatch('/tests/:id');
-  const matchParamId = match?.params?.id;
+  const match = useMatch('/tests/:name');
+  const testName = match?.params?.name;
 
   useEffect(() => {
-    if (tests.length && !matchParamId) {
-      navigate(`${ROUTES.TESTS}/${tests[0].id}`);
+    if (tests?.length && !testName) {
+      navigate(`${ROUTES.TESTS}/${encodeURIComponent(tests[0][TEST_KEYS.TEST_NAME])}`);
     }
-  }, [tests, matchParamId]);
+  }, [tests, testName]);
 
-  if (!tests.length) {
+  if (error) {
+    return (
+      <StyledFlexContainer justify="center" alignItems="center">
+        <GenericError />
+      </StyledFlexContainer>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <StyledFlexContainer justify="center" alignItems="center">
+        <Spinner size={80} />
+      </StyledFlexContainer>
+    );
+  }
+
+  if (!tests?.length) {
     return (
       <NoTestsAvailable />
     );
