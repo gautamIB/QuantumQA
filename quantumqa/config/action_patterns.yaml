@@ -161,6 +161,12 @@ verify:
       url_prefix: 1
       url_suffix: 2
       
+  - regex: "verify\\s+(?:that\\s+)?(?:it\\s+)?redirect[s]?\\s+to\\s+(?:new\\s+)?page\\s+.*?with\\s+url\\s+prefix\\s+(?:as\\s+)?[\"']([^\"']+)[\"']"
+    description: "Verify URL redirection with prefix only"
+    extractor:
+      verification_type: "url_redirect_with_patterns"
+      url_prefix: 1
+      
   - regex: "verify\\s+(?:that\\s+)?(?:it\\s+)?redirect[s]?\\s+to\\s+(.+)"
     description: "Verify URL redirection"
     extractor:

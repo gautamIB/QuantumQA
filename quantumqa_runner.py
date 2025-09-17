@@ -13,7 +13,9 @@ from typing import Optional
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+from quantumqa.engines.vision_chrome_engine import VisionChromeEngine
 from quantumqa.engines.chrome_engine import ChromeEngine
+from quantumqa.core.llm import VisionLLMClient
 from quantumqa.api.api_engine import APIEngine
 from quantumqa.api.api_parser import APIDocumentationParser
 
@@ -42,16 +44,35 @@ def detect_test_type(instruction_file: str) -> str:
 async def run_ui_test(instruction_file: str, headless: bool = False, 
                      credentials_file: Optional[str] = None, config_dir: Optional[str] = None,
                      connect_to_existing: bool = True, debug_port: int = 9222):
-    """Run UI test using Chrome engine."""
-    print("🌐 Running UI Test")
+    """Run UI test using Vision-Enhanced Chrome engine."""
+    print("🌐 Running Vision-Enhanced UI Test")
     print("=" * 50)
     
-    engine = ChromeEngine(
-        config_dir=config_dir, 
-        credentials_file=credentials_file,
-        connect_to_existing=connect_to_existing,
-        debug_port=debug_port
-    )
+    # Initialize vision client for AI-powered element detection
+    try:
+        print("🤖 Initializing Vision-LLM Client...")
+        vision_client = VisionLLMClient()
+        print("✅ Vision client initialized successfully")
+    except Exception as e:
+        print(f"❌ Failed to initialize vision client: {e}")
+        print("🔄 Falling back to basic Chrome engine...")
+        
+        # Fallback to basic engine if vision fails
+        engine = ChromeEngine(
+            config_dir=config_dir, 
+            credentials_file=credentials_file,
+            connect_to_existing=connect_to_existing,
+            debug_port=debug_port
+        )
+    else:
+        # Use vision-enhanced engine
+        engine = VisionChromeEngine(
+            vision_client=vision_client,
+            config_dir=config_dir, 
+            credentials_file=credentials_file,
+            connect_to_existing=connect_to_existing,
+            debug_port=debug_port
+        )
     
     try:
         await engine.initialize(headless=headless)

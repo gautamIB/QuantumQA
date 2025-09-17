@@ -13,6 +13,7 @@ from datetime import datetime
 from .base_agent import BaseAgent
 from .element_detector import ElementDetectorAgent
 from ..core.llm import VisionLLMClient
+from ..core.ui_context_manager import UIContextManager
 from ..core.models import (
     MessageType, 
     AgentMessage, 
@@ -48,6 +49,9 @@ class OrchestratorAgent(BaseAgent):
             agent_id="element_detector_main",
             vision_client=vision_client
         )
+        
+        # UI Context Management
+        self.ui_context_manager = UIContextManager()
         
         # Test execution state
         self.current_test_id: Optional[str] = None
@@ -101,6 +105,9 @@ class OrchestratorAgent(BaseAgent):
         print(f"\n🎭 OrchestratorAgent executing test {test_id[:8]}...")
         print(f"📋 Instructions: {len(instructions)} steps")
         
+        # Clear any previous UI contexts for new test
+        self.ui_context_manager.clear_all_contexts()
+        
         step_results = []
         test_status = TestStatus.RUNNING
         
@@ -110,15 +117,42 @@ class OrchestratorAgent(BaseAgent):
                 
                 step_start_time = datetime.now()
                 
+                # Analyze step for UI context creation (dropdowns, modals, etc.)
+                ui_context_created = self.ui_context_manager.analyze_step_for_context(i, instruction)
+                
+                # Check if step needs to be executed within a specific UI context
+                ui_context_needed = self.ui_context_manager.check_if_step_needs_context(i, instruction)
+                
+                # Build enhanced context with UI state information
+                enhanced_context = {
+                    "test_id": test_id,
+                    "total_steps": len(instructions),
+                    "previous_steps": step_results,
+                    "step_number": i
+                }
+                
+                # Add UI context information if needed
+                if ui_context_needed:
+                    enhanced_context.update(ui_context_needed)
+                    print(f"    🎯 Step requires UI context: {ui_context_needed['search_scope']}")
+                
+                if ui_context_created:
+                    enhanced_context["ui_context_created"] = {
+                        "type": ui_context_created.element_type.value,
+                        "target": ui_context_created.target_description
+                    }
+                
+                # Add active contexts summary for debugging
+                active_contexts_summary = self.ui_context_manager.get_context_summary()
+                if active_contexts_summary != "No active UI contexts":
+                    enhanced_context["active_ui_contexts"] = active_contexts_summary
+                    print(f"    📋 Active UI contexts: {active_contexts_summary}")
+                
                 # Execute single instruction step
                 step_result = await self._execute_step(
                     step_number=i,
                     instruction=instruction,
-                    context={
-                        "test_id": test_id,
-                        "total_steps": len(instructions),
-                        "previous_steps": step_results
-                    }
+                    context=enhanced_context
                 )
                 
                 step_execution_time = (datetime.now() - step_start_time).total_seconds()

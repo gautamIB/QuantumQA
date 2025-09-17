@@ -1,0 +1,14 @@
+{
+  "run_name": "login_test_run_1",
+  "test_file": "Test/UI/sample_ui_test.txt",
+  "test_type": "UI",
+  "environment": "https://aihub-sandbox.internal.instabase.com",
+  "status": "FAILED",
+  "start_time": "2025-09-17T10:18:31.497585",
+  "end_time": "2025-09-17T10:19:16.146288",
+  "duration_seconds": 44.648703,
+  "return_code": 1,
+  "success_rate": 75.0,
+  "log_file": "logs/login_test_run_1.txt",
+  "command": "python quantumqa_runner.py Test/UI/sample_ui_test.txt --type ui --credentials logs/login_test_run_1_creds.yaml --visible"
+}

@@ -1,17 +1,6 @@
 # Complete End-to-End Conversation User Journey
 # Extended workflow based on actual AIHub conversation interface
 
-# === SETUP & AUTHENTICATION ===
-Navigate to https://aihub-uat.internal.instabase.com/
-Verify the AIHub homepage loads successfully
-Click on Sign In
-Verify that login form appears
-Type {cred:aihub.email} in email field
-Click on Continue
-Type {cred:aihub.password} in password field
-Click on Log In
-Verify that user is logged in successfully
-
 # === WORKSPACE NAVIGATION ===
 Click on workspaces
 Verify that workspaces page loads successfully
@@ -97,77 +86,3 @@ Verify that both user message and AI response are visible in right panel history
 Verify that response has Instabase Icon in start of the response
 Verify that conversation history maintains chronological order
 Verify that conversation history is scrollable if content exceeds view
-
-# === FOLLOW-UP CONVERSATION TESTING ===
-Type "Extract all the key information in this document in table format" in message input field
-Click send button
-Verify that new message appears in conversation history
-Wait for streaming response to begin
-Verify that AI response streams in gradually
-Wait for complete response (10 seconds to 1 minute)
-Verify that AI provides relevant table format response
-Verify that conversation history shows all 4 messages (2 user + 2 AI)
-
-# === THIRD CONVERSATION INTERACTION ===
-Type "Create a bar chart for the net sales of the company from 2015 to 2020" in message input field
-Send the message
-Verify message appears in history
-Wait for streaming AI response
-Verify response completion
-Verify that conversation maintains proper flow and context
-
-# === CONVERSATION MANAGEMENT FEATURES ===
-Click on conversation dropdown arrow at top left
-Select "Clear Chat History" option
-Verify that conversation history is cleared
-Verify that uploaded files remain in left panel
-Verify that document preview remains in center panel
-
-# === FILE MANAGEMENT TESTING ===
-Upload a second document (if supported)
-# PLACEHOLDER: User should replace this path with actual second file path
-Upload file from path: "/path/to/your/second/document.docx"
-Wait for processing completion
-Verify that both files appear in left panel
-Click on second file in left panel
-Verify that center panel updates to show second document
-Test switching between files in left panel
-
-# === DIGITIZATION SETTINGS TESTING ===
-Click on conversation dropdown
-Select "Digitization Settings"
-Verify that settings dialog or page opens
-Explore available digitization options
-Close settings without making changes
-
-# === ERROR HANDLING VERIFICATION ===
-Try sending message without uploading any document (if system allows)
-Verify appropriate error message or guidance
-Try uploading unsupported file format (if applicable)
-Verify that appropriate error handling occurs
-
-# === FINAL VERIFICATION ===
-Verify that all conversation features work correctly
-Verify that document processing and AI responses function properly
-Verify that conversation history and file management work as expected
-Test that streaming responses complete successfully
-Confirm that the complete end-to-end workflow functions correctly
-
-# === NEW CONVERSATION TESTING ===
-From conversation dropdown, select "Create Conversation"
-Verify that new conversation is created
-Verify that conversation history is empty
-
-# === CLEANUP (Optional) ===
-From conversation dropdown, select "Delete Conversation" 
-Confirm deletion if prompted
-Verify that conversation is removed from recent conversations
-Navigate back to workspace main page
-
-# === CONVERSATION PERSISTENCE TESTING ===
-Navigate away from conversation page
-Return to conversations section
-Verify that recent conversations are accessible
-Click on recent conversation to reopen
-Verify that conversation history is preserved
-Verify that file associations are maintained
