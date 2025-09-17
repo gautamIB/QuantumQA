@@ -32,7 +32,10 @@ class VisionChromeEngine:
                  credentials_file: Optional[str] = None,
                  use_vision_primary: bool = True,
                  connect_to_existing: bool = True,
-                 debug_port: int = 9222):
+                 debug_port: int = 9222,
+                 enable_caching: bool = True,
+                 performance_mode: bool = True,
+                 performance_measurement_mode: bool = False):
         """
         Initialize the Vision-Enhanced Chrome Engine.
         
@@ -49,6 +52,15 @@ class VisionChromeEngine:
         self.use_vision_primary = use_vision_primary
         self.connect_to_existing = connect_to_existing
         self.debug_port = debug_port
+        self.enable_caching = enable_caching
+        self.performance_mode = performance_mode
+        self.performance_measurement_mode = performance_measurement_mode
+
+        # 🚀 PERFORMANCE: Set up cache directories
+        self.cache_dir = Path.home() / ".quantumqa_cache"
+        self.user_data_dir = self.cache_dir / "user_data"
+        self.cache_dir.mkdir(exist_ok=True)
+        self.user_data_dir.mkdir(exist_ok=True)
 
         # Handle credentials file path
         self.credentials_file = None
@@ -101,9 +113,21 @@ class VisionChromeEngine:
         self.traditional_fallbacks = 0
         self.detection_failures = 0
 
+        # 🚀 PERFORMANCE: Smart loading statistics
+        self.smart_loading_saves = 0
+        self.total_wait_time_saved = 0.0
+        self.early_element_detections = 0
+
+        cache_status = "enabled" if enable_caching else "disabled"
+        perf_status = "enabled" if performance_mode else "disabled"
         print(
-            f"🔮 VisionChromeEngine initialized (vision_primary={use_vision_primary})"
+            f"🔮 VisionChromeEngine initialized (vision_primary={use_vision_primary}, cache={cache_status}, perf={perf_status}"
         )
+
+        if performance_measurement_mode:
+            print("    🎯 Performance Measurement Mode: ACTIVE")
+            print("    📊 CSP bypass enabled for accurate LCP/INP measurement")
+            print("    🚫 Resource filtering disabled for measurement accuracy")
 
         self.all_dom_elements = []
 
@@ -231,26 +255,117 @@ class VisionChromeEngine:
     async def _launch_new_browser(self,
                                   headless: bool = False,
                                   viewport: Dict[str, int] = None) -> None:
-        """Launch a new Chrome browser instance."""
-        self.browser = await self.playwright.chromium.launch(
-            channel="chrome",
-            headless=headless,
-            args=[
-                "--no-first-run",
-                "--disable-blink-features=AutomationControlled",
+        """Launch a new Chrome browser instance with caching and performance optimizations."""
+
+        # 🚀 PERFORMANCE: Build optimized Chrome arguments
+        chrome_args = [
+            "--no-first-run",
+            "--disable-blink-features=AutomationControlled",
+        ]
+
+        # 🎯 PERFORMANCE MEASUREMENT: Special mode for accurate LCP/INP measurement
+        if self.performance_measurement_mode:
+            chrome_args.extend([
+                # CSP Bypass for Performance Tools
+                "--disable-features=VizDisplayCompositor,TranslateUI,BlinkGenPropertyTrees",
                 "--disable-web-security",
-                "--disable-features=VizDisplayCompositor",
-                f"--remote-debugging-port={self.debug_port}"  # Enable remote debugging for future connections
+                "--disable-site-isolation-trials",
+                "--disable-content-security-policy",
+                "--allow-running-insecure-content",
+
+                # Performance Measurement Optimizations
+                "--enable-features=NetworkService,NetworkServiceLogging",
+                "--enable-precise-memory-info",
+                "--enable-gpu-rasterization",
+                "--enable-zero-copy",
+                "--disable-background-timer-throttling",
+                "--disable-backgrounding-occluded-windows",
+                "--disable-renderer-backgrounding",
+
+                # Reduce Debugging Overhead
+                "--disable-dev-shm-usage",
+                "--disable-extensions",
+                "--disable-component-update",
+                "--disable-default-apps",
+                "--disable-plugins",
+
+                # Enable Remote Debugging Only When Needed
+                f"--remote-debugging-port={self.debug_port}",
+            ])
+            print(
+                f"    🎯 Performance measurement mode enabled - optimized for LCP/INP accuracy"
+            )
+        else:
+            # Standard debugging mode
+            chrome_args.extend([
+                f"--remote-debugging-port={self.debug_port}",
+                "--disable-web-security",  # For testing across domains
             ])
 
-        viewport = viewport or {'width': 1400, 'height': 900}
-        self.context = await self.browser.new_context(
-            viewport=viewport,
-            user_agent=
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-        )
+        # 📦 CACHING: Prepare persistent user data directory when caching is enabled
+        if self.enable_caching:
+            print(f"    💾 Using persistent cache: {self.user_data_dir}")
 
+        # ⚡ PERFORMANCE: Add performance optimizations (if not in measurement mode)
+        if self.performance_mode and not self.performance_measurement_mode:
+            chrome_args.extend([
+                "--max_old_space_size=4096",  # Increase V8 memory
+                "--js-flags=--max-old-space-size=4096",
+                "--enable-features=VaapiVideoDecoder",  # Hardware video decoding
+                "--disable-features=TranslateUI",
+                "--disable-component-update",
+                "--disable-background-timer-throttling",
+                "--disable-backgrounding-occluded-windows",
+                "--disable-renderer-backgrounding",
+                "--process-per-site",  # Optimize process usage
+                "--enable-fast-unload",
+                "--enable-tcp-fast-open",
+            ])
+            print(f"    ⚡ Performance optimizations enabled")
+        elif not self.performance_measurement_mode:
+            # For regular testing (more compatible but slower)
+            chrome_args.extend([
+                "--disable-features=VizDisplayCompositor",
+            ])
+
+        # 🍪 CONTEXT: Create Chrome context (prefer persistent context when caching)
+        viewport = viewport or {'width': 1400, 'height': 900}
+        context_options = {
+            "viewport":
+            viewport,
+            "user_agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        if self.enable_caching:
+            # Use persistent context per Playwright guidance
+            self.context = await self.playwright.chromium.launch_persistent_context(
+                user_data_dir=str(self.user_data_dir),
+                channel="chrome",
+                headless=headless,
+                args=chrome_args,
+                **context_options)
+            self.browser = self.context.browser
+        else:
+            # Fallback to regular launch + ephemeral context
+            self.browser = await self.playwright.chromium.launch(
+                channel="chrome", headless=headless, args=chrome_args)
+            self.context = await self.browser.new_context(**context_options)
+
+        # 🚀 PAGE: Enable cache and optimize loading
         self.page = await self.context.new_page()
+
+        # ⚡ PERFORMANCE: Set optimized timeouts
+        self.page.set_default_timeout(15000)  # Reduced from 30s default
+        self.page.set_default_navigation_timeout(
+            20000)  # Reduced navigation timeout
+
+        # 🚀 PERFORMANCE: Optional resource filtering (skip in measurement mode)
+        if self.performance_mode and not self.performance_measurement_mode:
+            await self._setup_resource_filtering()
+        elif self.performance_measurement_mode:
+            print(
+                f"    🎯 Skipping resource filtering for accurate performance measurement"
+            )
 
     async def execute_test(self, instruction_file: str) -> Dict[str, Any]:
         """Execute test instructions using vision-enhanced detection."""
@@ -293,6 +408,46 @@ class VisionChromeEngine:
                     f"  🔍 Parsed as: {action_plan['action']} -> {action_plan.get('target', 'N/A')} ({parse_time:.2f}s)"
                 )
 
+                # Skip comment lines and empty instructions
+                if action_plan.get("skip", False):
+                    print(f"    📝 Skipping comment/empty line: {instruction}")
+                    results.append({
+                        "step": i + 1,
+                        "instruction": instruction,
+                        "action": action_plan["action"],
+                        "target": "N/A",
+                        "status":
+                        "success",  # Add status field for consistency
+                        "success": True,
+                        "skipped": True,
+                        "url": self.page.url,
+                        "title": await self.page.title(),
+                        "timing": {
+                            "parse_time": parse_time,
+                            "execute_time": 0.0,
+                            "total_time": parse_time
+                        }
+                    })
+                    continue
+
+                # 🚀 SMART LOADING: Look ahead for next action target to optimize page loading
+                if action_plan["action"] == "navigate" and i + 1 < total_steps:
+                    next_instruction = instructions[i + 1].strip()
+                    if next_instruction and not next_instruction.startswith(
+                            '#') and not next_instruction.startswith('//'):
+                        try:
+                            next_action_plan = await self.instruction_parser.parse(
+                                next_instruction)
+                            if next_action_plan.get("target"):
+                                action_plan[
+                                    "next_action_target"] = next_action_plan[
+                                        "target"]
+                                print(
+                                    f"    🎯 Next action target identified: '{next_action_plan['target']}'"
+                                )
+                        except:
+                            pass  # Ignore parsing errors for lookahead
+
                 # Add UI context information to action plan if needed
                 if ui_context_needed:
                     action_plan.update(ui_context_needed)
@@ -331,9 +486,10 @@ class VisionChromeEngine:
 
                 # Record result
                 result = {
-                    "step": i,
+                    "step": i + 1,
                     "instruction": instruction,
-                    "action_plan": action_plan,
+                    "action": action_plan["action"],
+                    "target": action_plan.get("target", "N/A"),
                     "status": "success" if success else "failed",
                     "success":
                     success,  # Add boolean success field for report processing
@@ -350,11 +506,12 @@ class VisionChromeEngine:
 
                 if success:
                     print(
-                        f"  ✅ Step {i} completed successfully ({step_total_time:.2f}s total)"
+                        f"  ✅ Step {i + 1} completed successfully ({step_total_time:.2f}s total)"
                     )
                 else:
                     print(
-                        f"  ❌ Step {i} failed ({step_total_time:.2f}s total)")
+                        f"  ❌ Step {i + 1} failed ({step_total_time:.2f}s total)"
+                    )
 
                 # 🎯 VISUAL FEEDBACK: Brief pause to observe result
                 print(f"  ⏸️ Pausing to observe step result...")
@@ -363,10 +520,14 @@ class VisionChromeEngine:
 
             except Exception as e:
                 step_total_time = time.time() - step_start_time
-                print(f"  ❌ Step {i} error: {str(e)} ({step_total_time:.2f}s)")
+                print(
+                    f"  ❌ Step {i + 1} error: {str(e)} ({step_total_time:.2f}s)"
+                )
                 results.append({
-                    "step": i,
+                    "step": i + 1,
                     "instruction": instruction,
+                    "action": "error",
+                    "target": "N/A",
                     "status": "error",
                     "success":
                     False,  # Add boolean success field for report processing
@@ -406,9 +567,11 @@ class VisionChromeEngine:
                 success = await self.action_executor.navigate(self.page, url)
 
                 if success:
-                    print(f"    ⏳ Waiting for page to fully load...")
-                    # Enhanced page stability wait
-                    await self._wait_for_page_stability(navigation=True)
+                    print(f"    ⏳ Waiting for page to load...")
+                    # 🚀 SMART WAITING: Check if next action's target is already available
+                    next_action_target = action_plan.get("next_action_target")
+                    await self._wait_for_page_stability(
+                        navigation=True, target_hint=next_action_target)
 
                     # Capture post-navigation state
                     await self._capture_action_screenshot("post_navigation")
@@ -453,6 +616,17 @@ class VisionChromeEngine:
                 return await self.action_executor.wait(
                     self.page, action_plan.get("wait_type", "time"),
                     action_plan.get("duration", 2))
+
+            elif action == "upload":
+                # Handle file upload using executor
+                file_path = action_plan.get("file_path")
+                if not file_path:
+                    print(
+                        f"    ❌ Upload requested but no file_path provided in action plan"
+                    )
+                    return False
+                return await self.action_executor.upload_file(
+                    self.page, file_path)
 
             elif action == "comment":
                 print(
@@ -526,6 +700,7 @@ class VisionChromeEngine:
             print(f"    🤖 AI normalized '{target}' → {normalized_targets}")
 
             # Stage 2: Enhanced Traditional Detection with normalized terms
+            traditional_coords = None
             if True:
                 await self._ensure_openai_client()
             traditional_coords = await find_and_click_most_relevant_element(
@@ -534,7 +709,7 @@ class VisionChromeEngine:
                 self.get_all_dom_elements(), self.openai_client)
             if not traditional_coords:
                 traditional_coords = await self._try_enhanced_traditional_detection(
-                    action_plan, target, normalized_targets, button_text)
+                    action_plan, target, normalized_targets)
 
             if traditional_coords:
                 # Validate coordinates are within viewport bounds
@@ -786,6 +961,25 @@ class VisionChromeEngine:
             target: str) -> Tuple[List[str], str]:
         """Use AI to normalize human language instructions into selector-friendly terms."""
         try:
+            # Define stop words that should be filtered out
+            STOP_WORDS = {
+                'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
+                'has', 'he', 'in', 'is', 'it', 'its', 'of', 'on', 'that',
+                'the', 'to', 'was', 'were', 'will', 'with', 'would', 'this',
+                'these', 'those', 'they', 'there', 'their', 'then', 'than',
+                'them', 'can', 'could', 'should', 'would', 'may', 'might',
+                'must', 'shall', 'do', 'does', 'did', 'have', 'had', 'has',
+                'been', 'being'
+            }
+
+            # Clean target by removing stop words but preserve meaningful phrases
+            target_words = target.lower().split()
+            filtered_words = [
+                word for word in target_words if word not in STOP_WORDS
+            ]
+            clean_target = ' '.join(
+                filtered_words) if filtered_words else target
+
             action_type = action_plan["action"]
             page_context = {
                 "url": self.page.url,
@@ -808,6 +1002,7 @@ Provide 3-5 alternative terms/phrases that could represent the same UI element:
 4. Context-appropriate alternatives
 
 If its a 'click' action, provide a string of button texts that could represent the same UI element.
+IMPORTANT: Focus on meaningful UI element terms, avoid stop words like 'on', 'the', 'to', 'from', etc.
 
 Strcitly return only a JSON object with the following structure, no explanation no comments:
 {{
@@ -908,6 +1103,8 @@ Examples:
         # Common synonyms
         synonyms = {
             "workspaces": ["workspace", "work space", "projects"],
+            # Ensure 'create dropdown' also searches for 'create'
+            "create dropdown": ["create", "new", "add", "+"],
             "create": ["new", "add", "+"],
             "menu": ["navigation", "nav"],
             "sign in": ["login", "log in", "signin"],
@@ -1094,48 +1291,48 @@ Examples:
                 f"    🎯 Using dropdown-scoped selectors for '{target}' within {ui_context_target} dropdown"
             )
             # Prioritize elements within dropdown/menu regions
-            selectors.extend([
-                {
-                    "selector":
-                    f"[role='menu'] [role='menuitem']:has-text('{target}')",
-                    "strategy": "dropdown_menuitem",
-                    "priority": 0
-                },
-                {
-                    "selector": f"[role='menu'] button:has-text('{target}')",
-                    "strategy": "dropdown_button",
-                    "priority": 0
-                },
-                {
-                    "selector": f"[role='menu'] *:has-text('{target}')",
-                    "strategy": "dropdown_any",
-                    "priority": 0
-                },
-                {
-                    "selector":
-                    f"[aria-expanded='true'] + * [role='menuitem']:has-text('{target}')",
-                    "strategy": "expanded_dropdown_item",
-                    "priority": 0
-                },
-                {
-                    "selector":
-                    f"[aria-expanded='true'] + * button:has-text('{target}')",
-                    "strategy": "expanded_dropdown_button",
-                    "priority": 0
-                },
-                {
-                    "selector":
-                    f"[class*='dropdown'][class*='open'] *:has-text('{target}')",
-                    "strategy": "open_dropdown_item",
-                    "priority": 0
-                },
-                {
-                    "selector":
-                    f"[class*='menu'][style*='block'] *:has-text('{target}')",
-                    "strategy": "visible_menu_item",
-                    "priority": 0
-                },
-            ])
+        selectors.extend([
+            {
+                "selector":
+                f"[role='menu'] [role='menuitem']:has-text('{target}')",
+                "strategy": "dropdown_menuitem",
+                "priority": 0
+            },
+            {
+                "selector": f"[role='menu'] button:has-text('{target}')",
+                "strategy": "dropdown_button",
+                "priority": 0
+            },
+            {
+                "selector": f"[role='menu'] *:has-text('{target}')",
+                "strategy": "dropdown_any",
+                "priority": 0
+            },
+            {
+                "selector":
+                f"[aria-expanded='true'] + * [role='menuitem']:has-text('{target}')",
+                "strategy": "expanded_dropdown_item",
+                "priority": 0
+            },
+            {
+                "selector":
+                f"[aria-expanded='true'] + * button:has-text('{target}')",
+                "strategy": "expanded_dropdown_button",
+                "priority": 0
+            },
+            {
+                "selector":
+                f"[class*='dropdown'][class*='open'] *:has-text('{target}')",
+                "strategy": "open_dropdown_item",
+                "priority": 0
+            },
+            {
+                "selector":
+                f"[class*='menu'][style*='block'] *:has-text('{target}')",
+                "strategy": "visible_menu_item",
+                "priority": 0
+            },
+        ])
 
         # Strategy 2: Direct text matching (lower priority when context exists, higher when no context)
         text_priority = 3 if ui_context_type else 1
@@ -1692,6 +1889,11 @@ Examples:
                     f"    🔄 Navigation detected: {initial_url} → {current_url}"
                 )
                 await self._wait_for_page_stability(navigation=True)
+                # Clear stale UI contexts after navigation
+                try:
+                    self.ui_context_manager.clear_all_contexts()
+                except Exception:
+                    pass
             elif current_title != initial_title:
                 print(
                     f"    📄 Page title changed: '{initial_title}' → '{current_title}'"
@@ -1804,44 +2006,231 @@ Examples:
         except Exception as e:
             print(f"    ⚠️ Could not capture action screenshot: {e}")
 
-    async def _wait_for_page_stability(self, navigation: bool = True) -> None:
-        """Enhanced page stability waiting with visual feedback."""
+    async def _wait_for_page_stability(self,
+                                       navigation: bool = True,
+                                       target_hint: str = None) -> None:
+        """Intelligent page stability waiting with early element-ready detection."""
         try:
             if navigation:
-                print(f"    ⏳ Waiting for navigation to complete...")
-                # Wait for basic page load
+                # Step 1: Wait for basic DOM
                 await self.page.wait_for_load_state('domcontentloaded',
-                                                    timeout=15000)
+                                                    timeout=10000)
                 print(f"    ✅ DOM content loaded")
 
-                # Wait for network to calm down
-                await self.page.wait_for_load_state('networkidle',
-                                                    timeout=10000)
-                print(f"    🌐 Network activity settled")
+                # Step 2: 🚀 SMART EARLY DETECTION - Check if target element is already ready
+                if target_hint:
+                    early_check_start = time.time()
+                    element_ready = await self._check_target_element_ready(
+                        target_hint)
+                    if element_ready:
+                        time_saved = 2.0 if self.enable_caching else 5.0  # Estimate time saved
+                        self.smart_loading_saves += 1
+                        self.total_wait_time_saved += time_saved
+                        self.early_element_detections += 1
+                        print(
+                            f"    🎯 Target element '{target_hint}' ready - skipping wait! (saved ~{time_saved:.1f}s)"
+                        )
+                        return
 
-                # Additional wait for dynamic content
-                await asyncio.sleep(1.5)
-                print(f"    ⏱️ Additional stability wait completed")
+                # Step 3: Smart waiting based on caching and performance mode
+                if self.enable_caching:
+                    # For cached pages, shorter wait with periodic target checks
+                    await self._smart_wait_with_target_checks(
+                        0.3, 2.0, target_hint)
+                    print(
+                        f"    🚀 Smart load completed (cached + target-aware)")
+                else:
+                    # For non-cached, still try to detect target early
+                    try:
+                        # Quick network check, but don't wait too long
+                        await self.page.wait_for_load_state('networkidle',
+                                                            timeout=3000)
+                        print(f"    🌐 Network activity settled")
+                    except:
+                        print(
+                            f"    ⚡ Network still active - checking target anyway"
+                        )
+
+                    # Final check for target availability
+                    if target_hint:
+                        element_ready = await self._check_target_element_ready(
+                            target_hint)
+                        if element_ready:
+                            time_saved = 1.0  # Estimate time saved
+                            self.smart_loading_saves += 1
+                            self.total_wait_time_saved += time_saved
+                            self.early_element_detections += 1
+                            print(
+                                f"    🎯 Target element ready - proceeding early! (saved ~{time_saved:.1f}s)"
+                            )
+                            return
+
+                    # Minimal fallback wait
+                    await asyncio.sleep(0.5)
+                    print(f"    ⏱️ Load completed with target awareness")
             else:
-                print(f"    ⏳ Waiting for page updates to stabilize...")
-                # For non-navigation page changes, shorter wait
-                await asyncio.sleep(1.0)
+                # For non-navigation updates, much faster
+                await asyncio.sleep(0.2)
 
-                # Check if any loading indicators are present
+                # Quick target check for non-navigation actions
+                if target_hint:
+                    element_ready = await self._check_target_element_ready(
+                        target_hint)
+                    if element_ready:
+                        print(f"    🎯 Target element ready immediately")
+                        return
+
+                # Quick loading indicator check
                 try:
                     await self.page.wait_for_selector(
                         '.loading, .spinner, [data-loading="true"]',
                         state='detached',
-                        timeout=5000)
+                        timeout=1000)
                     print(f"    ✅ Loading indicators cleared")
                 except:
-                    pass  # No loading indicators found, continue
+                    pass
 
-                await asyncio.sleep(0.5)
-                print(f"    ✅ Page updates stabilized")
+                await asyncio.sleep(0.1)
+                print(f"    ✅ Page updates ready")
 
         except Exception as e:
-            print(f"    ⚠️ Page stability wait warning: {e}")
+            print(
+                f"    ⚠️ Page stability wait warning: {e} - continuing anyway")
+
+    async def _smart_wait_with_target_checks(self,
+                                             initial_wait: float,
+                                             max_wait: float,
+                                             target_hint: str = None) -> None:
+        """Smart waiting that periodically checks for target element availability."""
+        await asyncio.sleep(initial_wait)
+
+        if not target_hint:
+            await asyncio.sleep(max_wait - initial_wait)
+            return
+
+        # Check target availability every 200ms for up to max_wait
+        start_time = time.time()
+        check_interval = 0.2
+
+        while (time.time() - start_time) < max_wait:
+            if await self._check_target_element_ready(target_hint):
+                elapsed = time.time() - start_time
+                time_saved = max_wait - elapsed
+                self.smart_loading_saves += 1
+                self.total_wait_time_saved += time_saved
+                self.early_element_detections += 1
+                print(
+                    f"    🚀 Target element ready after {elapsed:.1f}s - proceeding! (saved {time_saved:.1f}s)"
+                )
+                return
+            await asyncio.sleep(check_interval)
+
+    async def _check_target_element_ready(self, target_hint: str) -> bool:
+        """Check if target element is available and interactive."""
+        if not target_hint or len(target_hint.strip()) < 2:
+            return False
+
+        try:
+            # Generate quick selectors for common element patterns
+            quick_selectors = self._generate_quick_selectors(target_hint)
+
+            for selector in quick_selectors:
+                try:
+                    # Quick check if element exists and is visible/enabled
+                    element = await self.page.query_selector(selector)
+                    if element:
+                        # Check if element is actually interactable
+                        is_visible = await element.is_visible()
+                        is_enabled = await element.is_enabled()
+
+                        if is_visible and is_enabled:
+                            print(f"    🎯 Found ready element: {selector}")
+                            return True
+                except:
+                    continue  # Try next selector
+
+            return False
+
+        except Exception as e:
+            return False
+
+    def _generate_quick_selectors(self, target: str) -> List[str]:
+        """Generate quick selectors for common target patterns."""
+        if not target:
+            return []
+
+        selectors = []
+        target_lower = target.lower()
+
+        # Button patterns
+        if any(word in target_lower
+               for word in ['button', 'btn', 'click', 'submit']):
+            selectors.extend([
+                f"button:has-text('{target}')",
+                f"input[type='button']:has-text('{target}')",
+                f"input[type='submit']:has-text('{target}')",
+                f"[role='button']:has-text('{target}')"
+            ])
+
+        # Input field patterns
+        if any(word in target_lower for word in
+               ['input', 'field', 'box', 'search', 'email', 'password']):
+            selectors.extend([
+                f"input[placeholder*='{target}' i]",
+                f"textarea[placeholder*='{target}' i]",
+                f"input[aria-label*='{target}' i]",
+                f"textarea[aria-label*='{target}' i]"
+            ])
+
+        # Link patterns
+        if any(word in target_lower for word in ['link', 'href', 'navigate']):
+            selectors.extend([
+                f"a:has-text('{target}')",
+                f"[role='link']:has-text('{target}')"
+            ])
+
+        # Generic text-based selectors
+        selectors.extend([
+            f"*:has-text('{target}'):visible", f"[aria-label*='{target}' i]",
+            f"[title*='{target}' i]"
+        ])
+
+        return selectors[:8]  # Limit to 8 quick checks
+
+    async def _setup_resource_filtering(self) -> None:
+        """Set up resource filtering for faster page loads when visual elements aren't needed."""
+        try:
+            # Block unnecessary resources for faster loading (can be disabled for visual testing)
+            # NOTE: Only block analytics and social media trackers - keep images for vision testing
+            await self.page.route("**/analytics*", lambda route: route.abort())
+            await self.page.route("**/google-analytics*",
+                                  lambda route: route.abort())
+            await self.page.route("**/gtag*", lambda route: route.abort())
+            await self.page.route("**/facebook*", lambda route: route.abort())
+            await self.page.route("**/twitter*", lambda route: route.abort())
+            await self.page.route("**/doubleclick*",
+                                  lambda route: route.abort())
+            await self.page.route("**/googlesyndication*",
+                                  lambda route: route.abort())
+            print(
+                f"    🚫 Resource filtering enabled (analytics and trackers blocked)"
+            )
+        except Exception as e:
+            print(f"    ⚠️ Could not enable resource filtering: {e}")
+
+    async def _clear_resource_filtering(self) -> None:
+        """Clear resource filtering to allow all resources."""
+        try:
+            await self.page.unroute("**/*.{png,jpg,jpeg,gif,webp,svg}")
+            await self.page.unroute("**/*.{woff,woff2,ttf,eot}")
+            await self.page.unroute("**/analytics*")
+            await self.page.unroute("**/google-analytics*")
+            await self.page.unroute("**/gtag*")
+            await self.page.unroute("**/facebook*")
+            await self.page.unroute("**/twitter*")
+            print(f"    ✅ Resource filtering cleared (all resources allowed)")
+        except Exception as e:
+            print(f"    ⚠️ Could not clear resource filtering: {e}")
 
     async def _type_text(self, text: str) -> bool:
         """Type text at current focus with enhanced visual feedback and credential substitution."""

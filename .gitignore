@@ -55,3 +55,8 @@ Thumbs.db
 generated_instructions/*
 
 logs/
+# Result files
+results/
+logs/
+test_results/
+reports/

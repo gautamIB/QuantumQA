@@ -163,7 +163,15 @@ class InstructionParser:
     def _extract_click_params(self, instruction: str, match: re.Match,
                               extractor: Dict) -> Dict[str, Any]:
         """Extract click parameters."""
-
+        
+        # Define stop words that should be filtered from targets
+        STOP_WORDS = {
+            'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
+            'has', 'he', 'in', 'is', 'it', 'its', 'of', 'on', 'that', 'the',
+            'to', 'was', 'were', 'will', 'with', 'would', 'this', 'these',
+            'those', 'they', 'there', 'their', 'then', 'than', 'them'
+        }
+        
         # Extract target element text
         target = None
 

@@ -43,7 +43,7 @@ def detect_test_type(instruction_file: str) -> str:
 
 async def run_ui_test(instruction_file: str, headless: bool = False,
                      credentials_file: Optional[str] = None, config_dir: Optional[str] = None,
-                     connect_to_existing: bool = True, debug_port: int = 9222):
+                     connect_to_existing: bool = True, debug_port: int = 9222, args=None):
     """Run UI test using Vision-Enhanced Chrome engine."""
     print("🌐 Running Vision-Enhanced UI Test")
     print("=" * 50)
@@ -71,7 +71,10 @@ async def run_ui_test(instruction_file: str, headless: bool = False,
             config_dir=config_dir, 
             credentials_file=credentials_file,
             connect_to_existing=connect_to_existing,
-            debug_port=debug_port
+            debug_port=debug_port,
+            enable_caching=not getattr(args, 'disable_caching', False),  # Enable caching for faster loads
+            performance_mode=not getattr(args, 'disable_performance', False),  # Enable performance optimizations
+            performance_measurement_mode=getattr(args, 'performance_measurement', False)  # Enable for LCP/INP measurement
         )
     
     try:
@@ -180,7 +183,13 @@ Examples:
                        help='Force launch new browser instead of connecting to existing')
     parser.add_argument('--debug-port', type=int, default=9222,
                        help='Chrome remote debugging port (default: 9222)')
-
+    parser.add_argument('--performance-measurement', action='store_true',
+                       help='Enable performance measurement mode (optimized for LCP/INP, bypasses CSP)')
+    parser.add_argument('--disable-caching', action='store_true',
+                       help='Disable browser caching')
+    parser.add_argument('--disable-performance', action='store_true',
+                       help='Disable performance optimizations')
+    
     args = parser.parse_args()
 
     # Validate instruction file exists
@@ -227,7 +236,8 @@ Examples:
             args.credentials,
             args.config,
             connect_to_existing,
-            args.debug_port
+            args.debug_port,
+            args
         )
 
     # Exit with appropriate code

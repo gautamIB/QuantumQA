@@ -36,14 +36,27 @@ async def find_and_click_most_relevant_element(
     Returns:
         Coordinates of the element if found, None otherwise
     """
-    logger.info(f"Finding most relevant element for goal: '{user_goal}'")
     if page is None:
         logger.error("Page object not available")
         return None
 
-    try:
-        logger.info(f"Finding most relevant element for goal: '{user_goal}'")
+    # lowercase the button_text and convert to unique words
+    button_text_words = []
+    if target:
+        button_text_words.append(target.lower().strip())
+    button_text_words.extend(
+        button_text.lower().split(',') if button_text else [])
+    button_text = ', '.join(list(dict.fromkeys(button_text_words))).strip()
+    print(f"Final Button text: {button_text}")
 
+    # Wait for target elements to be visible before proceeding
+    logger.info(
+        f"Waiting for elements matching target: '{target}' / button_text: '{button_text}'"
+    )
+
+    try:
+        print(f"Finding most relevant element for goal: '{user_goal}'")
+        # button_text = button_text.lower() if button_text else target.lower()
         # 1. Extract all clickable elements using Playwright's API
         # This includes buttons, links, and elements with an onclick attribute
         elements_to_evaluate = []
@@ -62,14 +75,37 @@ async def find_and_click_most_relevant_element(
         # Get all potentially clickable elements
         elements = await page.query_selector_all(combined_selector)
 
-        logger.info(
-            f"Found {len(elements)} potential clickable elements in DOM")
+        print(f"Found {len(elements)} potential clickable elements in DOM")
 
         # Process each element
         for idx, element in enumerate(elements):
             try:
-                # Check if element is visible
-                is_visible = await element.is_visible()
+                # Enhanced visibility check with timeout
+                try:
+                    # Check if element is visible with a timeout
+                    is_visible = await element.is_visible()
+
+                    # Additional check for elements that might be technically visible but not interactive
+                    if is_visible:
+                        # Check if element is not hidden by CSS or has zero dimensions
+                        is_actually_visible = await element.evaluate("""
+                            (el) => {
+                                const style = window.getComputedStyle(el);
+                                const rect = el.getBoundingClientRect();
+                                
+                                return style.display !== 'none' && 
+                                       style.visibility !== 'hidden' && 
+                                       style.opacity !== '0' &&
+                                       rect.width > 0 && 
+                                       rect.height > 0 &&
+                                       !el.hasAttribute('disabled');
+                            }
+                        """)
+                        is_visible = is_visible and is_actually_visible
+                except Exception as e:
+                    logger.warning(
+                        f"Error checking visibility for element {idx}: {e}")
+                    is_visible = False
 
                 if is_visible:
                     # Get element properties
@@ -98,10 +134,10 @@ async def find_and_click_most_relevant_element(
                     html = await element.evaluate('el => el.outerHTML')
 
                     # Add check to ensure at least one word from the button_text is in the text or attributes
-                    should_add = True
+                    should_add = True  # Default to True if no button_text is provided
                     if button_text:
                         # Only filter if button_text is provided
-                        button_words = button_text.lower().split()
+                        button_words = button_text.lower().split(',')
                         text_match = any(word in text.lower()
                                          for word in button_words)
 
@@ -116,12 +152,21 @@ async def find_and_click_most_relevant_element(
                                               for key in attributes.keys()
                                               for word in button_words)
 
+                        # Only apply filtering if button_text is provided
                         should_add = text_match or attr_values_match or attr_keys_match
-
                     if should_add:
-                        # logger.info(
-                        #     f"Element {idx} contains the button text: {button_text}"
-                        # )
+                        print(
+                            f"PRESENT:: Element {idx}, element text: {text}, element class: {classes}. "
+                        )
+
+                        if attributes.get('role') == 'tab' and text.lower(
+                        ).strip() == 'create':
+                            #skip the element
+                            print(
+                                f"SKIPPING:: Element {idx}, element text: {text}, element attributes: {attributes} "
+                            )
+                            continue
+
                         elements_to_evaluate.append({
                             "index": idx,
                             "text": text,
@@ -132,12 +177,20 @@ async def find_and_click_most_relevant_element(
                             "element":
                             element  # Store the actual element handle
                         })
+                    else:
+                        # print(
+                        #     f"SKIPPED: Element {idx}, element text: {text}, element attributes: {attributes}"
+                        # )
+                        pass
 
             except Exception as e:
                 logger.warning(f"Error processing element {idx}: {str(e)}")
 
-        logger.info(
-            f"Evaluating {len(elements_to_evaluate)} clickable elements")
+        print(f"Evaluating {len(elements_to_evaluate)} clickable elements")
+
+        for elem in elements_to_evaluate:
+            if elem['text'] != '':
+              print(f"Element: {elem['index']}, {elem['text']}, {elem['tag']}")
 
         # Prepare the data for the LLM
         element_data = []
@@ -150,28 +203,60 @@ async def find_and_click_most_relevant_element(
                 "attributes": {
                     k: v
                     for k, v in elem["attributes"].items() if k in [
-                        "id", "class", "data-target", "data-action",
-                        "data-content", "href", "role", "aria-label", "title"
+                        "id", "data-target", "data-action", "data-content",
+                        "href", "role", "aria-label", "title"
                     ]
                 }
             })
 
         # Create a prompt for the LLM
         prompt = f"""
-        I need to find the most relevant element to click for this goal: "{user_goal}"
         
-        Here are the clickable elements on the page:
-        {json.dumps(element_data, indent=2)}
-        
-        Analyze these elements and determine which one is most likely to achieve the user's goal.
-        Return a JSON object with the following structure:
-        {{
-            "selected_index": <index of the selected element>,
-            "reasoning": "<explanation of why this element was selected>",
-            "confidence": <number between 0 and 1 indicating confidence>
-        }}
-        
-        Only return the JSON object, nothing else.
+Your task is to act as a highly specialized web automation agent. 
+Your sole purpose is to analyze a list of clickable web elements and, based on a given user goal, select the single most relevant element to click.
+
+## Instructions:
+
+1.  **Analyze the Goal**: Carefully read the user's objective to understand the intent behind the click.
+
+2.  **Examine Elements**: Analyze the provided JSON list of clickable elements. Pay close attention to their `role`, `text`, `id`, and other attributes.
+
+3.  **Prioritize Clicks**: Prioritize elements as follows, with higher numbers being more important:
+
+    * **Priority 1**: Elements that have text or attributes that directly match keywords in the user's goal (e.g., "Add to Cart," "Sign Up," "Download").
+
+    * **Priority 2**: Buttons or links (`<button>`, `<a>`, `[role="button"]`) over other interactive elements (`[role="tab"]`, `<div>`).
+
+    * **Special Rule**: For "create" or "add" type of user goal, prioritize `role="button"` over `role="tab"` to avoid selecting a tab for a click action.
+
+4.  **Deduce and Select**: Based on your analysis and priorities, determine the index of the single most relevant element. If no element is a clear match, select the element that is the most logical choice for the user's next step.
+
+5.  **Provide Justification**: Provide a clear, step-by-step reasoning for your choice. Explain why you selected the chosen element and why you discarded others.
+
+6.  **Assess Confidence**: Assign a confidence score between 0.0 and 1.0. A score of 1.0 means you are certain of the choice. A score below 0.5 indicates high uncertainty and a need for further information.
+
+## Input:
+
+User Goal: "{user_goal}"
+
+Clickable Elements:
+
+{json.dumps(element_data, indent=2)}
+
+## Output:
+You **must** return a single JSON object. The object must follow this exact structure, with no extra text or explanations outside the JSON.
+
+```json
+
+{{
+
+    "selected_index": <integer index of the selected element>,
+
+    "reasoning": "<string explanation of why this element was selected>",
+
+    "confidence": <float number between 0.0 and 1.0>
+
+}}
         """
 
         # Call the OpenAI API directly if client is provided
@@ -225,10 +310,10 @@ async def find_and_click_most_relevant_element(
             reasoning = llm_result.get("reasoning", "No reasoning provided")
             confidence = llm_result.get("confidence", 0)
 
-            logger.info(
+            print(
                 f"LLM selected element index {selected_index} with confidence {confidence}"
             )
-            logger.info(f"Reasoning: {reasoning}")
+            print(f"Reasoning: {reasoning}")
 
             # Find the selected element in our original list
             selected_element = None
@@ -269,7 +354,7 @@ async def find_and_click_most_relevant_element(
                                 element = await page.query_selector(selector)
 
                                 if element:
-                                    logger.info(
+                                    print(
                                         f"Found element using selector: {selector} with strategy: {strategy}"
                                     )
                                     break
@@ -288,7 +373,7 @@ async def find_and_click_most_relevant_element(
                 # Get element text for logging
                 element_text = selected_element["text"]
 
-                logger.info(
+                print(
                     f"Clicking element: '{element_text}', attributes: {selected_element['attributes']}"
                 )
 
@@ -304,7 +389,7 @@ async def find_and_click_most_relevant_element(
                     coords = Coordinates(x=center_x, y=center_y)
 
                     # Log the coordinates
-                    logger.info(
+                    print(
                         f"Found element at coordinates: ({center_x}, {center_y})"
                     )
 
@@ -330,4 +415,4 @@ async def find_and_click_most_relevant_element(
         import traceback
         logger.error(traceback.format_exc())
 
-        return None
+        return NoneI

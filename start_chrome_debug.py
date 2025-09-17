@@ -61,7 +61,7 @@ def find_chrome_executable():
     return None
 
 
-def start_chrome_debug(debug_port=9222, user_data_dir=None, additional_args=None):
+def start_chrome_debug(debug_port=9222, user_data_dir=None, additional_args=None, performance_mode=True):
     """Start Chrome with remote debugging enabled."""
     
     chrome_path = find_chrome_executable()
@@ -79,7 +79,7 @@ def start_chrome_debug(debug_port=9222, user_data_dir=None, additional_args=None
     # Ensure user data directory exists
     os.makedirs(user_data_dir, exist_ok=True)
     
-    # Chrome arguments for debugging
+    # Chrome arguments for debugging with performance optimizations
     chrome_args = [
         chrome_path,
         f"--remote-debugging-port={debug_port}",
@@ -88,17 +88,60 @@ def start_chrome_debug(debug_port=9222, user_data_dir=None, additional_args=None
         "--disable-default-apps",
         "--disable-popup-blocking",
         "--disable-translate",
-        "--disable-background-timer-throttling",
-        "--disable-renderer-backgrounding",
-        "--disable-backgrounding-occluded-windows",
-        "--disable-ipc-flooding-protection",
-        "--disable-hang-monitor",
-        "--disable-prompt-on-repost",
         "--disable-sync",
-        "--enable-automation",
         "--password-store=basic",
         "--use-mock-keychain"
     ]
+    
+    # 🚀 PERFORMANCE: Add optimizations matching vision_chrome_engine.py
+    if performance_mode:
+        chrome_args.extend([
+            # Performance optimizations
+            "--disable-background-timer-throttling",
+            "--disable-renderer-backgrounding", 
+            "--disable-backgrounding-occluded-windows",
+            "--disable-ipc-flooding-protection",
+            "--disable-hang-monitor",
+            "--disable-prompt-on-repost",
+            
+            # Enhanced performance flags
+            "--max_old_space_size=4096",
+            "--js-flags=--max-old-space-size=4096",
+            "--enable-features=VaapiVideoDecoder,NetworkService,NetworkServiceLogging",
+            "--disable-features=TranslateUI,VizDisplayCompositor",
+            "--disable-component-update",
+            "--enable-gpu-rasterization",
+            "--enable-fast-unload",
+            "--enable-tcp-fast-open",
+            "--process-per-site",
+            
+            # Cache optimizations
+            "--disk-cache-size=268435456",  # 256MB cache
+            "--media-cache-size=67108864",  # 64MB media cache
+            "--aggressive-cache-discard",
+            
+            # CSP and security optimizations for performance measurement
+            "--disable-web-security",
+            "--disable-site-isolation-trials",
+            "--allow-running-insecure-content",
+            
+            # Additional performance flags
+            "--enable-precise-memory-info",
+            "--enable-zero-copy",
+            "--disable-dev-shm-usage",
+            "--disable-extensions-except=",  # Disable all extensions
+        ])
+        print(f"    ⚡ Performance optimizations enabled")
+    else:
+        chrome_args.extend([
+            "--disable-background-timer-throttling",
+            "--disable-renderer-backgrounding",
+            "--disable-backgrounding-occluded-windows", 
+            "--disable-ipc-flooding-protection",
+            "--disable-hang-monitor",
+            "--disable-prompt-on-repost",
+        ])
+        print(f"    🔧 Standard debugging mode")
     
     # Add any additional arguments
     if additional_args:
@@ -125,7 +168,7 @@ def start_chrome_debug(debug_port=9222, user_data_dir=None, additional_args=None
             print("  1. Chrome is now running with remote debugging enabled")
             print("  2. You can manually log into websites in this Chrome instance")
             print("  3. Run QuantumQA tests to connect to this browser:")
-            print(f"     python run_vision_test.py examples/conversation_with_login.txt --visible")
+            print(f"     python quantumqa_runner.py examples/conversation_with_login.txt --visible")
             print("\n🛑 To stop Chrome, close the browser window or press Ctrl+C")
             
             try:
@@ -184,14 +227,29 @@ Examples:
         help="Additional Chrome arguments (space-separated)"
     )
     
+    parser.add_argument(
+        "--performance",
+        action="store_true",
+        default=True,
+        help="Enable performance optimizations (default: True)"
+    )
+    
+    parser.add_argument(
+        "--no-performance",
+        action="store_true",
+        help="Disable performance optimizations"
+    )
+    
     args = parser.parse_args()
     
     additional_args = args.args.split() if args.args else None
+    performance_mode = args.performance and not args.no_performance
     
     success = start_chrome_debug(
         debug_port=args.port,
         user_data_dir=args.profile,
-        additional_args=additional_args
+        additional_args=additional_args,
+        performance_mode=performance_mode
     )
     
     sys.exit(0 if success else 1)
