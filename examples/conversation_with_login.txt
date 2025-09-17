@@ -1,4 +1,4 @@
-Navigate to https://aihub-uat.internal.instabase.com/
+Navigate to https://aihub.instabase.com/
 Click on workspaces from the top menu option
 Verify that Create button with border and dropdown arrow is visible (NOT the Create tab)
 Click on Create dropdown button

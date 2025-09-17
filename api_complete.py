@@ -120,6 +120,9 @@ class RunOptions(BaseModel):
     headless: bool = False
     timeout: int = 300
     retry_count: int = 1
+    performance_measurement: bool = True  # Enable performance measurement mode by default
+    disable_caching: bool = False  # Disable browser caching  
+    disable_performance: bool = False  # Disable performance optimizations
 
 class RunTestRequest(BaseModel):
     env: str  # HTTP URL
@@ -987,36 +990,99 @@ api_credentials:
             cmd.extend(["--credentials", creds_file])
         
         # Add options
-        if request.test_type == "UI" and not request.options.headless:
-            cmd.append("--visible")
+        if request.test_type == "UI":
+            if not request.options.headless:
+                cmd.append("--visible")
+            if getattr(request.options, 'performance_measurement', False):
+                cmd.append("--performance-measurement")
+            if getattr(request.options, 'disable_caching', False):
+                cmd.append("--disable-caching")
+            if getattr(request.options, 'disable_performance', False):
+                cmd.append("--disable-performance")
         
         logger.info(f"Executing command: {' '.join(cmd)}")
         
         # Execute the command and capture output
         start_time = datetime.now()
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            cwd=os.getcwd()
-        )
         
-        # Read output in real-time and save to log file
-        output_lines = []
+        # Initialize log file
         with open(log_file, 'w') as log_f:
-            while True:
-                output = process.stdout.readline()
-                if output == '' and process.poll() is not None:
-                    break
-                if output:
-                    output_lines.append(output.strip())
-                    log_f.write(output)
-                    log_f.flush()
+            log_f.write(f"=== QuantumQA Test Execution Log ===\n")
+            log_f.write(f"Command: {' '.join(cmd)}\n")
+            log_f.write(f"Started at: {start_time.isoformat()}\n")
+            log_f.write("=" * 50 + "\n\n")
+            log_f.flush()
         
-        # Wait for process to complete
-        return_code = process.poll()
-        end_time = datetime.now()
+        # Execute the command with proper output capture
+        try:
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,  # Line buffered
+                universal_newlines=True,
+                cwd=os.getcwd()
+            )
+            
+            # Read output in real-time and save to log file
+            output_lines = []
+            with open(log_file, 'a') as log_f:
+                for line in iter(process.stdout.readline, ''):
+                    if line:
+                        output_lines.append(line.strip())
+                        log_f.write(line)
+                        log_f.flush()
+                        logger.debug(f"Test output: {line.strip()}")
+            
+            # Wait for process to complete
+            return_code = process.wait()
+            end_time = datetime.now()
+            
+            # Write completion info to log
+            with open(log_file, 'a') as log_f:
+                log_f.write(f"\n" + "=" * 50 + "\n")
+                log_f.write(f"Completed at: {end_time.isoformat()}\n")
+                log_f.write(f"Return code: {return_code}\n")
+                log_f.write(f"Duration: {(end_time - start_time).total_seconds():.2f} seconds\n")
+                
+        except Exception as e:
+            return_code = 1
+            end_time = datetime.now()
+            error_msg = f"Process execution failed: {str(e)}"
+            logger.error(error_msg)
+            
+            # Write error to log file
+            with open(log_file, 'a') as log_f:
+                log_f.write(f"\nERROR: {error_msg}\n")
+                log_f.write(f"Failed at: {end_time.isoformat()}\n")
+            
+            # Fallback: try running command and capturing output differently
+            try:
+                logger.info("Attempting fallback execution method...")
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=request.options.timeout if request.options else 300,
+                    cwd=os.getcwd()
+                )
+                
+                with open(log_file, 'a') as log_f:
+                    log_f.write(f"\n--- FALLBACK EXECUTION ---\n")
+                    log_f.write(f"STDOUT:\n{result.stdout}\n")
+                    log_f.write(f"STDERR:\n{result.stderr}\n")
+                    log_f.write(f"Return code: {result.returncode}\n")
+                
+                return_code = result.returncode
+                output_lines = result.stdout.split('\n') if result.stdout else []
+                
+            except subprocess.TimeoutExpired:
+                with open(log_file, 'a') as log_f:
+                    log_f.write(f"\nERROR: Test execution timed out after {request.options.timeout if request.options else 300} seconds\n")
+            except Exception as fallback_error:
+                with open(log_file, 'a') as log_f:
+                    log_f.write(f"\nFALLBACK ERROR: {str(fallback_error)}\n")
         
         # Determine status
         status = "COMPLETED" if return_code == 0 else "FAILED"
