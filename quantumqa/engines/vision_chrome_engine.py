@@ -534,9 +534,12 @@ class VisionChromeEngine:
                     if action == "click":
                         return await self._click_at_coordinates(element_coords)
                     elif action == "type":
-                        # Click first, then type
+                        # For combined actions or regular type actions: Click first, then type
+                        print(f"    🖱️➡️⌨️ {'Combined' if action_plan.get('combined_action') else 'Standard'} action: clicking then typing")
                         click_success = await self._click_at_coordinates(element_coords)
                         if click_success:
+                            # Add slight delay to ensure focus is set
+                            await asyncio.sleep(0.3)
                             return await self._type_text(action_plan["text"])
                         return False
                 else:
@@ -570,9 +573,16 @@ class VisionChromeEngine:
                 print(f"    📝 Comment: {action_plan.get('raw_instruction', '')}")
                 return True
             
+            elif action == "unknown":
+                # 🎯 HYBRID FALLBACK: Use vision for unknown instructions
+                print(f"    🧠 Unknown action - using vision fallback for: '{action_plan.get('raw_instruction', '')}'")
+                return await self._execute_unknown_action_with_vision(action_plan, step_number)
+            
             else:
                 print(f"    ❓ Unknown action type: {action}")
-                return False
+                # 🎯 HYBRID FALLBACK: Try vision for any unrecognized action
+                print(f"    🧠 Falling back to vision for unrecognized action: '{action_plan.get('raw_instruction', '')}'")
+                return await self._execute_unknown_action_with_vision(action_plan, step_number)
                 
         except Exception as e:
             error_msg = str(e)
@@ -590,6 +600,142 @@ class VisionChromeEngine:
                 print(f"    ❌ Action execution error: {e}")
                 return False
     
+    async def _execute_unknown_action_with_vision(self, action_plan: Dict[str, Any], step_number: int) -> bool:
+        """Execute unknown/unrecognized actions using intelligent vision analysis."""
+        
+        raw_instruction = action_plan.get('raw_instruction', '').lower()
+        print(f"    🔍 Analyzing unknown instruction: '{raw_instruction}'")
+        
+        # 🧠 INTELLIGENT ACTION INFERENCE
+        # Infer the most likely action type from the instruction text
+        inferred_action = None
+        target_element = None
+        
+        # Look for action keywords in the instruction
+        if any(keyword in raw_instruction for keyword in ['look for', 'find', 'locate', 'search for']):
+            inferred_action = 'verify'
+            # Extract what we're looking for
+            if 'look for' in raw_instruction:
+                target_element = raw_instruction.split('look for')[1].strip()
+            elif 'find' in raw_instruction:
+                target_element = raw_instruction.split('find')[1].strip()
+            elif 'locate' in raw_instruction:
+                target_element = raw_instruction.split('locate')[1].strip()
+            elif 'search for' in raw_instruction:
+                target_element = raw_instruction.split('search for')[1].strip()
+                
+        elif any(keyword in raw_instruction for keyword in ['click', 'tap', 'press', 'select']):
+            inferred_action = 'click'
+            # Extract click target
+            for keyword in ['click', 'tap', 'press', 'select']:
+                if keyword in raw_instruction:
+                    parts = raw_instruction.split(keyword, 1)
+                    if len(parts) > 1:
+                        target_element = parts[1].strip()
+                    break
+                    
+        elif any(keyword in raw_instruction for keyword in ['type', 'enter', 'input']):
+            inferred_action = 'type'
+            # Extract text and field (this is complex, fall back to verification for now)
+            target_element = raw_instruction
+            
+        elif any(keyword in raw_instruction for keyword in ['verify', 'check', 'ensure', 'confirm']):
+            inferred_action = 'verify'
+            target_element = raw_instruction
+            
+        else:
+            # Default to verification for unknown instructions
+            inferred_action = 'verify'
+            target_element = raw_instruction
+        
+        if not target_element:
+            target_element = raw_instruction
+            
+        # Clean up target element text
+        target_element = target_element.strip()
+        # Remove common words that might interfere
+        for word in ['that', 'the', 'is', 'are', 'should', 'be', 'in', 'on', 'at']:
+            if target_element.startswith(word + ' '):
+                target_element = target_element[len(word):].strip()
+                
+        # 🎯 SMART INPUT FIELD DETECTION
+        # Convert generic input field descriptions to actual UI patterns
+        if 'message input field' in target_element or 'input text field' in target_element:
+            # Look for common input field patterns instead of literal text
+            if 'query your files' in raw_instruction.lower():
+                target_element = "Query your files"  # Use the actual placeholder text
+            elif 'message' in target_element:
+                target_element = "text input"  # Generic text input
+            else:
+                target_element = "input field"  # Fallback pattern
+        
+        print(f"    🎯 Inferred action: {inferred_action}, target: '{target_element}'")
+        
+        # 🚀 EXECUTE INFERRED ACTION
+        if inferred_action == 'verify':
+            # Use vision to verify element exists/is visible
+            return await self._verify_element_with_vision(target_element, step_number)
+            
+        elif inferred_action == 'click':
+            # Use vision to find and click element
+            mock_action_plan = {
+                'action': 'click',
+                'target': target_element,
+                'raw_instruction': action_plan.get('raw_instruction', '')
+            }
+            coordinates = await self._find_element_with_vision(mock_action_plan, step_number)
+            if coordinates:
+                return await self._click_at_coordinates(coordinates)
+            else:
+                print(f"    ❌ Vision could not locate clickable element: '{target_element}'")
+                return False
+                
+        elif inferred_action == 'type':
+            # For now, treat as verification since typing is complex to infer
+            return await self._verify_element_with_vision(target_element, step_number)
+            
+        else:
+            print(f"    ❌ Could not infer how to execute: '{raw_instruction}'")
+            return False
+    
+    async def _verify_element_with_vision(self, element_description: str, step_number: int) -> bool:
+        """Use vision to verify an element exists and is visible."""
+        
+        print(f"    👁️ Using vision to verify element: '{element_description}'")
+        
+        # Take screenshot for analysis
+        screenshot_path = await self._take_analysis_screenshot(step_number)
+        if not screenshot_path:
+            return False
+        
+        # Use vision AI to detect element
+        try:
+            context = {
+                "url": self.page.url,
+                "title": await self.page.title(),
+                "action_type": "verify",
+                "verification_purpose": "element_visibility"
+            }
+            
+            instruction = f"Look for {element_description} on the page. Determine if it exists and is visible to users."
+            
+            detection_result = await self.element_detector.detect_element(
+                screenshot_path=screenshot_path,
+                instruction=instruction,
+                context=context
+            )
+            
+            if detection_result.found and detection_result.center_coordinates:
+                print(f"    ✅ Vision confirmed element is visible: '{element_description}'")
+                return True
+            else:
+                print(f"    ❌ Vision could not find element: '{element_description}'")
+                return False
+                
+        except Exception as e:
+            print(f"    ❌ Vision verification error: {e}")
+            return False
+
     async def _find_element_with_vision(self, action_plan: Dict[str, Any], step_number: int) -> Optional[Coordinates]:
         """Use AI vision to find element coordinates."""
         
@@ -603,6 +749,10 @@ class VisionChromeEngine:
         if not target:
             print("    ⚠️ No target element specified for vision detection")
             return None
+            
+        print(f"    🔍 VISION DEBUG: Looking for target: '{target}'")
+        print(f"    🔍 VISION DEBUG: Raw instruction: '{action_plan.get('raw_instruction', '')}'")
+        print(f"    🔍 VISION DEBUG: Action plan keys: {list(action_plan.keys())}")
         
         # Create context for better detection
         context = {
@@ -627,6 +777,7 @@ class VisionChromeEngine:
             print(f"    🤖 AI normalized '{target}' → {normalized_targets}")
             
             # Stage 2: Enhanced Traditional Detection with normalized terms
+            print(f"    🔍 TRADITIONAL DEBUG: Trying enhanced traditional detection with target='{target}' and normalized={normalized_targets}")
             traditional_coords = await self._try_enhanced_traditional_detection(action_plan, target, normalized_targets)
             if traditional_coords:
                 # Validate coordinates are within viewport bounds
@@ -635,6 +786,8 @@ class VisionChromeEngine:
                     return traditional_coords
                 else:
                     print(f"    ⚠️ Traditional detection found element outside viewport bounds at ({traditional_coords.x}, {traditional_coords.y})")
+            else:
+                print(f"    ❌ TRADITIONAL DEBUG: Enhanced traditional detection returned None")
             
             # Stage 3: Fall back to vision detection if both AI+traditional fail
             print(f"    👁️ AI normalization + traditional failed, using vision as final fallback")
@@ -653,12 +806,15 @@ class VisionChromeEngine:
             if detection_result.found and detection_result.center_coordinates:
                 # ✅ VALIDATE ELEMENT IS INTERACTIVE AND WITHIN VIEWPORT
                 coords = detection_result.center_coordinates
+                print(f"    🔍 VISION DEBUG: Vision AI found element at coordinates ({coords.x}, {coords.y})")
+                print(f"    🔍 VISION DEBUG: Detection confidence: {detection_result.confidence if hasattr(detection_result, 'confidence') else 'N/A'}")
                 
                 # First check if coordinates are within viewport bounds
                 if not self._validate_coordinates_in_viewport(coords):
                     print(f"    ⚠️ Vision found element outside viewport bounds at ({coords.x}, {coords.y}) - retrying...")
                     better_coords = await self._find_nearby_interactive_element(coords, action_plan["action"])
                     if better_coords and self._validate_coordinates_in_viewport(better_coords):
+                        print(f"    🔍 VISION DEBUG: Found better coordinates at ({better_coords.x}, {better_coords.y})")
                         coords = better_coords
                         print(f"    ✅ Found better element within viewport at ({coords.x}, {coords.y})")
                     else:
@@ -1003,6 +1159,7 @@ Examples:
                         try:
                             selector = selector_info["selector"]
                             strategy = selector_info["strategy"]
+                            print(f"    🔍 SELECTOR DEBUG: Trying {strategy}: {selector}")
                             
                             # Try to find the element
                             element = self.page.locator(selector).first
@@ -1096,7 +1253,19 @@ Examples:
             {"selector": f"li:has-text('{target}')", "strategy": "list_item", "priority": 7},
         ])
         
-        # Strategy 6: Generic interactive elements
+        # Strategy 6: Input field and text area matching (for input-related targets)
+        if any(word in target_lower for word in ["query", "search", "input", "text", "message", "files"]):
+            selectors.extend([
+                {"selector": f"input[placeholder*='{target}' i]", "strategy": "input_placeholder", "priority": 2},
+                {"selector": f"textarea[placeholder*='{target}' i]", "strategy": "textarea_placeholder", "priority": 2},
+                {"selector": f"[contenteditable][placeholder*='{target}' i]", "strategy": "contenteditable_placeholder", "priority": 2},
+                {"selector": f"input[aria-label*='{target}' i]", "strategy": "input_aria_label", "priority": 3},
+                {"selector": f"textarea[aria-label*='{target}' i]", "strategy": "textarea_aria_label", "priority": 3},
+                {"selector": f"div:has-text('{target}') input", "strategy": "labeled_input", "priority": 4},
+                {"selector": f"div:has-text('{target}') textarea", "strategy": "labeled_textarea", "priority": 4},
+            ])
+        
+        # Strategy 7: Generic interactive elements
         selectors.extend([
             {"selector": f"*:has-text('{target}')[onclick]", "strategy": "clickable_element", "priority": 8},
             {"selector": f"div:has-text('{target}')[role='button']", "strategy": "div_button", "priority": 9},

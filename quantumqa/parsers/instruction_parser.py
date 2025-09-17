@@ -125,8 +125,12 @@ class InstructionParser:
         
         # Try common click patterns with better stop word handling
         click_patterns = [
-            r'click (?:on )?(?:the )?["\']?([^"\']+?)["\']?(?:\s+button|\s+link|\s+element|\s*$)',
-            r'click (?:on )?["\']?(.+?)["\']?(?:\s|$)',
+            # First priority: Extract exact quoted text
+            r'click (?:on )?["\']([^"\']+)["\']',
+            # Second priority: Common elements with specific endings  
+            r'click (?:on )?(?:the )?([^"\']+?)(?:\s+(?:button|link|element|field|area|input|dropdown|tab|option))',
+            # Third priority: General patterns
+            r'click (?:on )?(?:the )?([^"\']+?)(?:\s+in\s+|\s*$)',
             r'click\s+(.+?)(?:\s+button|\s+link|\s+element|$)',
         ]
         
@@ -155,6 +159,7 @@ class InstructionParser:
                     target = raw_target.rstrip(",.'\"”’`)")
                     break
         
+        
         # Extract context clues
         context = self._extract_context_clues(instruction)
         
@@ -170,7 +175,28 @@ class InstructionParser:
     def _extract_type_params(self, instruction: str, match: re.Match, extractor: Dict) -> Dict[str, Any]:
         """Extract typing parameters."""
         
-        # Pattern: "Type [text] in [field]" - Use original instruction to preserve case
+        # Check if this is a combined click and type action
+        if extractor.get("combined_action"):
+            # Extract from regex match groups
+            target_group = extractor.get("target", 1)
+            text_group = extractor.get("text", 2)
+            
+            target = match.group(target_group).strip() if match and match.groups() else ""
+            text = match.group(text_group).strip() if match and match.groups() else ""
+            
+            # Clean up target (remove quotes if present)
+            target = target.strip('"\'')
+            
+            # For combined actions, use the target as the field and add click action
+            return {
+                "text": text,
+                "field": target,  # The same target we click on
+                "target": target,  # Also set as target for click
+                "combined_action": True,
+                "field_type": None
+            }
+        
+        # Standard type action: "Type [text] in [field]" - Use original instruction to preserve case
         type_pattern = r'type\s+["\']?([^"\']+?)["\']?\s+(?:in|into)\s+(.+?)(?:\s+field|$)'
         type_match = re.search(type_pattern, instruction, re.IGNORECASE)  # Case insensitive matching but preserve original text
         
