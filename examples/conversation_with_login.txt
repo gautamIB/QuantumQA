@@ -1,16 +1,17 @@
 Navigate to https://aihub-uat.internal.instabase.com/
-Verify the AIHub homepage loads successfully
 Click on workspaces from the top menu option
-Verify that workspaces page loads successfully
-Verify that page has left panel with workspaces list
-Click on My workspace from the left panel
-Verify that My-Workspace loads successfully
-Verify that workspace has 4 tab options
-Verify that create tab is selected by default
-Verify that other tabs like Deploy, Review, and Data are visible
 Verify that Create button with border and dropdown arrow is visible (NOT the Create tab)
 Click on Create dropdown button
-verify that dropdown has the button for APP, Conversation, Chatbot 
-Click on Conversation button from dropdown option
+Click on Conversation button from the dropdown option
 Verify that it redirect to new page for conversation loading
-verify that page gets loaded successfully
+Click on "files", it should be highlighted with purple color
+# PLACEHOLDER: User should replace this path with actual local file path
+Upload file from path: "/Users/gautam/Desktop/Screenshot 2025-08-30 at 9.50.24 PM.png"
+Verify that processing screen appears in bottom left corner
+Wait for processing to complete (10 seconds to 2 minutes)
+Click on file name in left panel below the files sections
+Look for message input field in right panel bottom area
+Type "Summarise this document in 100 words in Spanish" in the message field
+Click send button or press Enter
+Wait for AI response to start streaming in the right panel
+Wait for streaming response to complete fully

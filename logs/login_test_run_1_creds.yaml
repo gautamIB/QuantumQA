@@ -1,0 +1,9 @@
+
+ui_credentials:
+  username: "{{email}}"
+  password: "{{password}}"
+  base_url: "https://aihub-sandbox.internal.instabase.com"
+
+api_credentials:
+  api_key: "{{auth}}"
+  base_url: "https://aihub-sandbox.internal.instabase.com"

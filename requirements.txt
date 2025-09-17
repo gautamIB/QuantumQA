@@ -1,15 +1,29 @@
-# QuantumQA - Core Dependencies (Python 3.9+ compatible)
+# QuantumQA - Core Dependencies (Python 3.9+ optimized)
+
+# Core automation framework
 playwright>=1.40.0
 openai>=1.3.8
-pydantic>=2.5.0
+pydantic>=2.5.0  # Full v2.x support with Python 3.9+
+
+# API and HTTP handling
+aiohttp>=3.9.0  # For HTTP client in API engine
+fastapi>=0.103.0
+uvicorn>=0.22.0
+python-multipart>=0.0.8
+
+# Configuration and data handling  
+PyYAML>=6.0
+cachetools>=5.0.0  # For TTLCache in element detection
+cryptography>=41.0.0
+
+# CLI and UI
 click>=8.1.7
 rich>=13.7.0
 pillow>=10.1.0
-PyYAML>=6.0
-cryptography>=41.0.0
-aiohttp>=3.8.5
+
+# Python standard library enhancements
+typing-extensions>=4.8.0  # Enhanced typing support
 dataclasses>=0.6
 argparse>=1.4.0
 pathlib>=1.0.1
 asyncio>=3.4.3
-typing>=3.7.4.3

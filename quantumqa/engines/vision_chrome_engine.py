@@ -14,6 +14,7 @@ from ..parsers.instruction_parser import InstructionParser
 from ..executors.action_executor import ActionExecutor
 from ..agents.element_detector import ElementDetectorAgent
 from ..core.llm import VisionLLMClient
+from ..core.ui_context_manager import UIContextManager
 from ..core.models import ElementDetectionResult, Coordinates
 
 
@@ -67,6 +68,9 @@ class VisionChromeEngine:
             agent_id="vision_detector",
             vision_client=vision_client
         )
+        
+        # UI Context Management
+        self.ui_context_manager = UIContextManager()
         
         # Fallback to traditional finder if needed
         if not use_vision_primary:
@@ -236,6 +240,9 @@ class VisionChromeEngine:
         print("\n🎯 Executing Test Steps with AI Vision:")
         print("=" * 60)
         
+        # Clear any previous UI contexts for new test
+        self.ui_context_manager.clear_all_contexts()
+        
         for i, instruction in enumerate(instructions, 1):
             step_start_time = time.time()
             print(f"\n📍 Step {i}/{total_steps}: {instruction}")
@@ -244,11 +251,34 @@ class VisionChromeEngine:
             self._current_step = i
             
             try:
+                # Analyze step for UI context creation (dropdowns, modals, etc.)
+                ui_context_created = self.ui_context_manager.analyze_step_for_context(i, instruction)
+                
+                # Check if step needs to be executed within a specific UI context
+                ui_context_needed = self.ui_context_manager.check_if_step_needs_context(i, instruction)
+                
                 # Parse instruction
                 parse_start = time.time()
                 action_plan = await self.instruction_parser.parse(instruction)
                 parse_time = time.time() - parse_start
                 print(f"  🔍 Parsed as: {action_plan['action']} -> {action_plan.get('target', 'N/A')} ({parse_time:.2f}s)")
+                
+                # Add UI context information to action plan if needed
+                if ui_context_needed:
+                    action_plan.update(ui_context_needed)
+                    print(f"    🎯 Step requires UI context: {ui_context_needed['search_scope']}")
+                
+                if ui_context_created:
+                    action_plan["ui_context_created"] = {
+                        "type": ui_context_created.element_type.value,
+                        "target": ui_context_created.target_description
+                    }
+                
+                # Add active contexts summary for debugging
+                active_contexts_summary = self.ui_context_manager.get_context_summary()
+                if active_contexts_summary != "No active UI contexts":
+                    action_plan["active_ui_contexts"] = active_contexts_summary
+                    print(f"    📋 Active UI contexts: {active_contexts_summary}")
                 
                 # 📊 VISUAL PROGRESS: Show step progress
                 progress_percent = (i / total_steps) * 100
@@ -424,6 +454,12 @@ class VisionChromeEngine:
             "action_type": action_plan["action"],
             "previous_action": "navigation" if step_number == 1 else "user_action"
         }
+        
+        # Add UI context information if available
+        ui_context_fields = ["ui_context_type", "ui_context_target", "ui_context_opened_step", "search_scope", "context_keywords"]
+        for field in ui_context_fields:
+            if field in action_plan:
+                context[field] = action_plan[field]
         
         # 🧠 INTELLIGENT THREE-STAGE PIPELINE
         print(f"    🧠 Using intelligent detection pipeline for: '{target}'")
@@ -678,9 +714,21 @@ Examples:
                 try:
                     # This is a text-only call, much faster and cheaper than vision
                     import openai
-                    client = openai.AsyncOpenAI(
-                        api_key=self.element_detector.vision_client.api_key
-                    )
+                    
+                    # Get API key from vision client's internal openai client
+                    vision_client = self.element_detector.vision_client
+                    api_key = vision_client.client.api_key if hasattr(vision_client.client, 'api_key') else None
+                    
+                    if not api_key:
+                        # Fallback: try to get from credentials again
+                        from ..utils.credentials_loader import get_openai_credentials
+                        creds = get_openai_credentials()
+                        api_key = creds.get('api_key')
+                    
+                    if not api_key:
+                        raise ValueError("No API key available")
+                    
+                    client = openai.AsyncOpenAI(api_key=api_key)
                     
                     response = await client.chat.completions.create(
                         model="gpt-4o-mini",  # Fast, cheap model for text processing
@@ -750,6 +798,9 @@ Examples:
                     # Generate smart selectors for this normalized target
                     selectors = self._generate_smart_selectors(target, action_plan)
                     
+                    # Sort selectors by priority (lower numbers = higher priority)
+                    selectors.sort(key=lambda x: x.get("priority", 999))
+                    
                     for selector_info in selectors:
                         try:
                             selector = selector_info["selector"]
@@ -791,10 +842,30 @@ Examples:
         selectors = []
         target_lower = target.lower()
         
-        # Strategy 1: Direct text matching (highest priority)
+        # 🎯 CHECK FOR UI CONTEXT (dropdown, modal, etc.)
+        ui_context_type = action_plan.get("ui_context_type")
+        ui_context_target = action_plan.get("ui_context_target")
+        search_scope = action_plan.get("search_scope")
+        
+        # Strategy 1: Context-aware element matching (HIGHEST priority when context exists)
+        if ui_context_type == "dropdown" and search_scope:
+            print(f"    🎯 Using dropdown-scoped selectors for '{target}' within {ui_context_target} dropdown")
+            # Prioritize elements within dropdown/menu regions
+            selectors.extend([
+                {"selector": f"[role='menu'] [role='menuitem']:has-text('{target}')", "strategy": "dropdown_menuitem", "priority": 0},
+                {"selector": f"[role='menu'] button:has-text('{target}')", "strategy": "dropdown_button", "priority": 0},
+                {"selector": f"[role='menu'] *:has-text('{target}')", "strategy": "dropdown_any", "priority": 0},
+                {"selector": f"[aria-expanded='true'] + * [role='menuitem']:has-text('{target}')", "strategy": "expanded_dropdown_item", "priority": 0},
+                {"selector": f"[aria-expanded='true'] + * button:has-text('{target}')", "strategy": "expanded_dropdown_button", "priority": 0},
+                {"selector": f"[class*='dropdown'][class*='open'] *:has-text('{target}')", "strategy": "open_dropdown_item", "priority": 0},
+                {"selector": f"[class*='menu'][style*='block'] *:has-text('{target}')", "strategy": "visible_menu_item", "priority": 0},
+            ])
+        
+        # Strategy 2: Direct text matching (lower priority when context exists, higher when no context)
+        text_priority = 3 if ui_context_type else 1
         selectors.extend([
-            {"selector": f"text='{target}'", "strategy": "exact_text", "priority": 1},
-            {"selector": f"text={target}", "strategy": "text_contains", "priority": 2},
+            {"selector": f"text='{target}'", "strategy": "exact_text", "priority": text_priority},
+            {"selector": f"text={target}", "strategy": "text_contains", "priority": text_priority + 1},
         ])
         
         # Strategy 2: Enhanced semantic element matching

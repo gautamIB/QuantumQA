@@ -1,0 +1,184 @@
+🚀 QuantumQA Framework Runner
+==================================================
+📁 Instruction File: Test/UI/sample_ui_test.txt
+🎯 Test Type: UI
+🔐 Credentials: logs/login_test_run_1_creds.yaml
+🌐 Browser Mode: Connect to existing
+🐛 Debug Port: 9222
+==================================================
+🌐 Running Vision-Enhanced UI Test
+==================================================
+🤖 Initializing Vision-LLM Client...
+🔑 Loading OpenAI credentials from configuration...
+✅ Loaded credentials from: quantumqa/config/credentials.yaml
+🔑 Using OpenAI API key from credentials file
+✅ Loaded OpenAI credentials: model=gpt-4o-mini
+🔮 VisionLLMClient initialized with model: gpt-4o-mini
+✅ Vision client initialized successfully
+✅ Loaded credentials from: /Users/gautam/Desktop/QuantumQA/logs/login_test_run_1_creds.yaml
+🔐 Credential manager initialized: /Users/gautam/Desktop/QuantumQA/logs/login_test_run_1_creds.yaml
+🤖 ElementDetector agent 'vision_detector' initialized
+📝 ElementDetector agent: Registered handler for MessageType.DETECT_ELEMENT
+📝 ElementDetector agent: Registered handler for MessageType.CLEAR_ELEMENT_CACHE
+🔮 VisionChromeEngine initialized (vision_primary=True)
+🚀 Initializing Vision-Enhanced Chrome Engine...
+✅ ElementDetectorAgent 'vision_detector' initialized with vision capabilities
+🔗 Attempting to connect to existing Chrome on port 9222...
+✅ Connected to existing Chrome browser!
+📱 Found 1 existing contexts
+   Context 0: 0 pages
+📱 Using first context (no active pages found)
+📄 Creating new tab in existing context...
+✅ New tab created successfully
+💡 TIP: For best results with authentication:
+   1. Manually navigate to https://aihub-uat.internal.instabase.com/ in Chrome
+   2. Complete login process
+   3. Then re-run this test to use authenticated session
+📏 Analyzing natural browser viewport...
+    📊 Current browser state:
+       Viewport: 1200x839
+       Window: 1200x978
+       Screen: 1728x1117
+       Device Pixel Ratio: 2
+    ✅ Working with natural viewport: 1200x839
+    🎯 Framework will adapt to these natural dimensions
+✅ Vision-Enhanced Chrome Engine initialized
+📋 Loaded 4 instructions
+
+🎯 Executing Test Steps with AI Vision:
+============================================================
+    🧹 UIContextManager: Cleared all contexts
+
+📍 Step 1/4: Navigate to https://google.com
+  🔍 Parsed as: navigate -> N/A (0.00s)
+  📊 Progress: [█████░░░░░░░░░░░░░░░] 25.0%
+    🧭 Navigating to: https://google.com
+    📸 Action screenshot: test_results/actions/step_1_pre_navigation_1758084515.png
+    🧭 Navigating to: https://google.com
+    ✅ Navigation successful
+    🌐 Current URL: https://www.google.com/
+    📄 Page title: Google
+    ⏳ Waiting for page to fully load...
+    ⏳ Waiting for navigation to complete...
+    ✅ DOM content loaded
+    🌐 Network activity settled
+    ⏱️ Additional stability wait completed
+    📸 Action screenshot: test_results/actions/step_1_post_navigation_1758084526.png
+    ✅ Navigation successful
+    🌐 Current URL: https://www.google.com/
+    📄 Page title: Google
+  ✅ Step 1 completed successfully (14.24s total)
+  ⏸️ Pausing to observe step result...
+
+📍 Step 2/4: Click on search box
+  🔍 Parsed as: click -> search (0.00s)
+  📊 Progress: [██████████░░░░░░░░░░] 50.0%
+    📏 Viewport Analysis:
+       Viewport: 1200x839
+       Window: 1200x978
+       Screen: 1728x1117
+       Device Pixel Ratio: 2
+       Document: 1200x839
+       Scroll: (0, 0)
+    📸 Screenshot for vision analysis: test_results/vision_analysis_step_2_1758084530.png
+    🧠 Using intelligent detection pipeline for: 'search'
+    🤖 AI normalized 'search' → ['search', 'Search', 'searches', 'find', 'query']
+    🔍 Trying selectors for normalized term: 'search'
+    🔍 Trying selectors for normalized term: 'Search'
+    🔍 Trying selectors for normalized term: 'searches'
+    🔍 Trying selectors for normalized term: 'find'
+    🔍 Trying selectors for normalized term: 'query'
+    👁️ AI normalization + traditional failed, using vision as final fallback
+    👁️ Using vision AI to detect element for: 'Find the interactive search element that can be clicked. Look for input fields, buttons, or clickable elements, NOT decorative divs or styling elements.'
+    🔄 Resized image to 2048x1432 for analysis
+    🔮 Calling vision model (attempt 1/3)
+    ✅ Vision detected: input at (400, 420) confidence=0.95
+    💾 Cached high-confidence detection (confidence: 0.95)
+    ⏱️ Vision detection took 10.26s
+    ⚠️ Vision found non-interactive element at (400, 420) - retrying...
+    🔄 Trying semantic element search first...
+    ✅ Found element with semantic search: textarea[name="q"]
+    ✅ Found better interactive element at (524, 391)
+    🎯 Preparing to click at coordinates (524, 391)
+    🖱️ Clicking at vision coordinates (524, 391)
+    🔍 Pre-click page state:
+       URL: https://www.google.com/
+       Title: Google
+       Ready state: complete
+    🎯 Element at (524, 391):
+       Tag: TEXTAREA
+       ID: APjFqb
+       Class: gLFyf
+       Type: textarea
+       Name: q
+       Placeholder: None
+       Role: combobox
+       Aria-label: Search
+       Text: None
+    ✅ Page confirmed ready for interaction
+    ✅ Mouse click executed successfully
+    📸 Action screenshot: test_results/actions/step_2_click_at_524_391_1758084548.png
+    ⏳ Monitoring for page changes...
+    🔍 Post-click page state:
+       URL: https://www.google.com/
+       Title: Google
+    ⚠️ No page changes detected - click might not have worked
+    📸 Action screenshot: test_results/actions/step_2_post_click_check_at_524_391_1758084549.png
+  ✅ Step 2 completed successfully (19.72s total)
+  ⏸️ Pausing to observe step result...
+
+📍 Step 3/4: Type hello world
+  🔍 Parsed as: unknown -> N/A (0.00s)
+  📊 Progress: [███████████████░░░░░] 75.0%
+    ❓ Unknown action type: unknown
+  ❌ Step 3 failed (0.00s total)
+  ⏸️ Pausing to observe step result...
+
+📍 Step 4/4: Verify page loads successfully
+  🔍 Parsed as: verify -> N/A (0.00s)
+  📊 Progress: [████████████████████] 100.0%
+    ✅ Verifying: page_load
+    📄 Current title: 'Google'
+    🌐 Current URL: https://www.google.com/
+    ✅ Page load check: True
+  ✅ Step 4 completed successfully (0.03s total)
+  ⏸️ Pausing to observe step result...
+
+🏁 Test completed in 40.05s
+
+============================================================
+📊 VISION-ENHANCED CHROME ENGINE REPORT
+============================================================
+📈 Overall Success Rate: 75.0% (3/4)
+🌐 Final URL: https://www.google.com/
+📄 Final Title: Google
+
+👁️ Vision Detection Statistics:
+  • Vision attempts: 1
+  • Vision success rate: 100.0%
+  • Traditional fallbacks: 0
+  • Detection failures: 0
+  • LLM requests: 1
+  • Estimated cost: $0.3863
+
+🎯 Visual Feedback & Stability Features:
+  • ✅ Click target highlighting enabled
+  • ✅ Action screenshots captured in test_results/actions/
+  • ✅ Enhanced navigation stability waiting
+  • ✅ Progress indicators during execution
+  • ✅ Real-time page state monitoring
+  • 📸 219 action screenshots saved
+📸 Final screenshot: test_results/final_vision_Test_UI_sample_ui_test.png
+
+📊 UI Test Results:
+✅ Success Rate: 75.0% (3/4)
+🌐 Final URL: https://www.google.com/
+📄 Final Title: Google
+📸 Screenshot: test_results/final_vision_Test_UI_sample_ui_test.png
+
+🛑 Cleaning up Vision-Enhanced Chrome Engine...
+✅ ElementDetectorAgent 'vision_detector' cleaned up
+📄 Closed test page
+🔗 Connected to existing browser - keeping browser instance alive
+📱 Closing empty context
+✅ Vision-Enhanced Chrome Engine cleanup completed
