@@ -1174,6 +1174,7 @@ Examples:
                         try:
                             selector = selector_info["selector"]
                             strategy = selector_info["strategy"]
+                            priority = selector_info["priority"]
                             print(f"    🔍 SELECTOR DEBUG: Trying {strategy}: {selector}")
                             
                             # Try to find the element
@@ -1183,7 +1184,7 @@ Examples:
                             if await element.count() > 0:
                                 try:
                                     if await element.is_visible(timeout=1000):  # Shorter timeout for efficiency
-                                        print(f"    ✅ Found using {strategy} for '{target}': {selector}")
+                                        print(f"    ✅ Found using {strategy} for '{target}': {selector}, priority: {priority}")
                                         
                                         # Get element coordinates
                                         bounding_box = await element.bounding_box()
@@ -1233,6 +1234,7 @@ Examples:
         
         # Strategy 2: Direct text matching (lower priority when context exists, higher when no context)
         text_priority = 3 if ui_context_type else 1
+        print(f"    🔍 UI Context Type: {ui_context_type}, text-priority {text_priority}")
         selectors.extend([
             {"selector": f"text='{target}'", "strategy": "exact_text", "priority": text_priority},
             {"selector": f"text={target}", "strategy": "text_contains", "priority": text_priority + 1},

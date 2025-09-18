@@ -1,0 +1,33 @@
+# Complete End-to-End Conversation User Journey
+# Extended workflow based on actual AIHub conversation interface
+
+# === CONVERSATION CREATION ===
+Navigate to https://aihub.instabase.com/
+Click on "workspaces"
+Click on "Create" button in the top right header
+verify that dropdown has the button for APP, Conversation, Chatbot
+Click on "App" button from dropdown option
+Click on "Blank Project" from the option
+
+# === MANDATORY DOCUMENT UPLOAD ===
+Upload file from path: "/Users/jeminjain/Downloads/dummy-pan.pdf"
+Verify that file selection dialog appears
+Verify that selected file is accepted for upload
+
+# === DOCUMENT PROCESSING VERIFICATION ===
+Verify that processing screen appears in bottom left corner
+Verify that processing status indicates "Processing..." or "Digitizing..."
+Wait for processing files progress bar to complete
+Wait for 30 seconds for process to complete
+Verify that processing screen disappears when complete
+
+# === Build INTERACTION - FIRST MESSAGE ===
+Click on "Autogenerate schema" button
+Wait for 30 seconds the schema generation to complete
+Verify the schema generation is complete
+Verify if the classification progress is complete
+
+# === Delete the Project===
+Click on 'Open project menu'
+Click on 'Delete Project' from the dropdown menu
+Click on 'Delete' button
