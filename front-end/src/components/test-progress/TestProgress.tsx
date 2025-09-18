@@ -5,14 +5,16 @@ export interface TestProgressProps {
   totalCount: number;
   successCount: number;
   errorCount: number;
+  skippedCount: number;
 }
 
 export const TestProgress: React.FC<TestProgressProps> = ({
   totalCount = 0,
   successCount = 0,
   errorCount = 0,
+  skippedCount = 0,
 }) => {
-  const percentage = totalCount ? ((successCount + errorCount) / totalCount) * 100 : 0;
+  const percentage = totalCount ? ((successCount + errorCount + skippedCount) / totalCount) * 100 : 0;
   return (
     <Box
       p={4}
@@ -22,9 +24,15 @@ export const TestProgress: React.FC<TestProgressProps> = ({
     >
       <FlexContainer justify="space-between" alignItems="center" mb={3}>
         <XSmall color="#1C1D20">
-          Status: {successCount + errorCount}/{totalCount}
+          Status: {successCount + errorCount + skippedCount}/{totalCount}
         </XSmall>
         <FlexContainer alignItems="center" gap={2}>
+            <FlexContainer alignItems="center" gap={1}>
+                <Icon icon="exclude" size={16} color="#90929C" />
+                <Small color="#90929C">
+                    {skippedCount}
+                </Small>
+            </FlexContainer>
             <FlexContainer alignItems="center" gap={1}>
                 <Icon icon="x-circle-filled" size={16} color="#B10A0A" />
                 <Small color="#B10A0A">
