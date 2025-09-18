@@ -6,5 +6,8 @@ export const useReport = (runName: string) => {
         queryKey: [API_KEYS.REPORT, runName],
         queryFn: () => fetch(`${API_ENDPOINTS.GET_RUNS}/${runName}${API_ENDPOINTS.GET_RUN_REPORT}`).then(r => r.json()),
         refetchOnWindowFocus: false,
+        onError: (err: any) => {
+            console.log(err);
+        },
     });
 };

@@ -7,7 +7,13 @@ export const useRun = (runName?: string) => {
     const queryClient = useQueryClient();
     return useQuery({
         queryKey: [API_KEYS.RUN, runName],
-        queryFn: () => fetch(`${API_ENDPOINTS.GET_RUNS}/${runName}`).then(r => r.json()),
+        queryFn: async () => {
+            const response = await fetch(`${API_ENDPOINTS.GET_RUNS}/${runName}`);
+            if (!response.ok) {
+                throw new Error('Failed to get run');
+            }
+            return response.json();
+        },
         onSuccess: (data) => {
             if (data[RUN_KEYS.STATUS] === RUN_STATUS.IN_PROGRESS) {
                 refetchTimeout.current = setTimeout(() => {
@@ -22,5 +28,8 @@ export const useRun = (runName?: string) => {
         },
         refetchOnWindowFocus: false,
         enabled: !!runName,
+        onError: (err: any) => {
+            console.log(err);
+        },
     });
 };

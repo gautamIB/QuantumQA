@@ -22,3 +22,7 @@
 2025-09-17 10:18:31,493 - api_complete - INFO - Started test run: login_test_run_1
 2025-09-17 10:18:31,497 - api_complete - INFO - Executing command: python quantumqa_runner.py Test/UI/sample_ui_test.txt --type ui --credentials logs/login_test_run_1_creds.yaml --visible
 2025-09-17 10:19:16,514 - api_complete - INFO - Retrieved 2/2 test runs
+2025-09-18 15:51:15,858 - __mp_main__ - INFO - Cleaned up orphaned credential file: logs/login_test_run_1_creds.yaml
+2025-09-18 15:51:15,858 - __mp_main__ - INFO - Cleaned up orphaned credential file: logs/test_with_stored_creds_creds.yaml
+2025-09-18 15:51:15,858 - __mp_main__ - INFO - Orphaned process cleanup completed
+2025-09-18 15:51:15,899 - api_complete - INFO - Orphaned process cleanup completed

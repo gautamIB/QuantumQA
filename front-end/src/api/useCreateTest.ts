@@ -1,5 +1,5 @@
 import { TFormData } from "../components/test-form/TestForm";
-import { FORM_LABELS, API_ENDPOINTS, TEST_KEYS } from "../constants";
+import { FORM_LABELS, API_ENDPOINTS, TEST_KEYS, TEST_OPTIONS } from "../constants";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { API_KEYS } from "../constants";
@@ -11,16 +11,28 @@ export const useCreateTest = () => {
     const navigate = useNavigate();
 
     return useMutation({
-        mutationFn: (test: TFormData) => {
+        mutationFn: async (test: TFormData) => {
           const formData = new FormData();
           formData.append(TEST_KEYS.TEST_NAME, test[FORM_LABELS.TEST_NAME]);
-          formData.append(TEST_KEYS.TEST_TYPE, test[FORM_LABELS.TEST_TYPE]);
-          formData.append(TEST_KEYS.STEPS, test[FORM_LABELS.STEPS]);
+          if (test[FORM_LABELS.TEST_TYPE] === TEST_OPTIONS.TEST_MO) {
+            formData.append(TEST_KEYS.TEST_TYPE, TEST_OPTIONS.END_TO_END_TEST);
+          } else {
+            formData.append(TEST_KEYS.TEST_TYPE, test[FORM_LABELS.TEST_TYPE]);
+          }
+          if (test[FORM_LABELS.API_YAML]) {
+            formData.append(TEST_KEYS.API_DOCUMENTATION, test[FORM_LABELS.API_YAML]);
+          } else {
+            formData.append(TEST_KEYS.STEPS, test[FORM_LABELS.STEPS]);
+          }
           
-          return fetch(API_ENDPOINTS.CREATE_TEST_CONFIGURATION, {
+          const response = await fetch(API_ENDPOINTS.CREATE_TEST_CONFIGURATION, {
             method: 'POST',
             body: formData,
           });
+          if (!response.ok) {
+            throw new Error('Failed to create test');
+          }
+          return response.json();
         },
         onSuccess: async (_response, test: TFormData) => {
           await queryClient.invalidateQueries({ queryKey: [API_KEYS.TEST_CONFIGURATIONS] });

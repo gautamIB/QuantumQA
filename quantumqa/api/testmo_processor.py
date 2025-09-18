@@ -296,7 +296,7 @@ class TestmoProcessor:
                 temp_file_path = temp_file.name
                 temp_file.write(instructions)
 
-            local_instructions_path = f"/Users/jeminjain/ProjectsOnGit/QuantumQA/generated_instructions/Converse_combined_cases.txt"
+            local_instructions_path = f"generated_instructions/Converse_combined_cases.txt"
             # save instructions to a file
             with open(local_instructions_path, "w") as f:
                 f.write(instructions)
@@ -487,7 +487,7 @@ async def main():
     processor = TestmoProcessor()
     await processor.process_json_file_for_folder(
         # "/Users/jeminjain/ProjectsOnGit/QuantumQA/downloads/testmo-cases.json",
-        "/Users/jeminjain/ProjectsOnGit/QuantumQA/downloads/converse_test_cases_subset.json",
+        "examples/converse_test_cases_subset.json",
         "Converse")
 
 

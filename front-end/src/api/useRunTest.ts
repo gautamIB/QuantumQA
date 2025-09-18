@@ -12,15 +12,19 @@ export const useRunTest = () => {
     const navigate = useNavigate();
 
     return useMutation({
-        mutationFn: ({formData, test}: {formData: RunTestFormData, test: TTest}) => {         
-          return fetch(API_ENDPOINTS.CREATE_RUN, {
+        mutationFn: async ({formData, test}: {formData: RunTestFormData, test: TTest}) => {
+          const credentials: any = {
+            username: formData.userName,
+            password: formData.password,
+          };
+          if (formData.apiKey) {
+            credentials.token = formData.apiKey;
+          }
+          const response = await fetch(API_ENDPOINTS.CREATE_RUN, {
             method: 'POST',
             body: JSON.stringify({
                 env: formData.testUrl,
-                credentials: {
-                    username: formData.userName,
-                    password: formData.password,
-                },
+                credentials,
                 test_file_path: test[TEST_KEYS.FILE_PATH],
                 test_type: test[TEST_KEYS.TEST_TYPE],
                 run_name: formData.runName,
@@ -34,6 +38,10 @@ export const useRunTest = () => {
               'Content-Type': 'application/json',
             },
           });
+          if (!response.ok) {
+            throw new Error('Failed to create run');
+          }
+          return response.json();
         },
         onSuccess: async (_response, { formData }: {formData: RunTestFormData}) => {
           await queryClient.invalidateQueries({ queryKey: [API_KEYS.RUNS] });
