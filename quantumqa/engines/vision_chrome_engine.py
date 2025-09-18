@@ -1245,22 +1245,38 @@ Examples:
                         temperature=0.1)
 
                     import json
-                    print(
-                        f"Response from LLM: {response.choices[0].message.content.strip()}"
-                    )
                     normalized_dict = json.loads(
-                        response.choices[0].message.content.strip())
-
-                    # Always include the original target
-                    if target not in normalized_dict["normalized_targets"]:
-                        normalized_dict["normalized_targets"].insert(0, target)
-
+                        response.choices[0].message.content.strip()
+                    
+                    normalized_list = normalized_dict["normalized_targets"]
                     button_text = normalized_dict["button_text"]
-
-                    return normalized_dict[
-                        "normalized_targets"][:6], normalized_dict[
-                            "button_text"]  # Limit to 6 terms max
-
+                    # Post-process to filter out any remaining stop words
+                    final_terms = []
+                    for term in normalized_list:
+                        # Split term into words and filter stop words
+                        term_words = term.lower().split()
+                        filtered_words = [word for word in term_words if word not in STOP_WORDS]
+                        
+                        # Only add if it has meaningful content
+                        if filtered_words:
+                            # Preserve original capitalization if only one word
+                            if len(filtered_words) == 1 and len(term_words) == 1:
+                                final_terms.append(term)
+                            else:
+                                # Rebuild with original spacing/capitalization where possible
+                                clean_term = ' '.join(filtered_words)
+                                if clean_term and clean_term not in final_terms:
+                                    final_terms.append(clean_term)
+                                    # Also add original if it's different and meaningful
+                                    if term != clean_term and len(term.split()) <= 3:
+                                        final_terms.append(term)
+                    
+                    # Always include the original target (but filter stop words from it too)
+                    if target not in final_terms:
+                        final_terms.insert(0, target)
+                    
+                    return final_terms[:6], button_text  # Limit to 6 terms max
+                    
                 except Exception as e:
                     import traceback
                     print(
