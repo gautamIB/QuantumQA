@@ -1520,45 +1520,54 @@ async def validate_test_config(test_name: str, test_type: Optional[str] = Query(
 # RUN TEST APIs
 # ============================================================================
 
-async def execute_quantumqa_test(request: RunTestRequest) -> Dict[str, Any]:
+async def execute_quantumqa_test(request: dict) -> Dict[str, Any]:
     """Execute QuantumQA test using the existing framework."""
     try:
+        # Extract values from request dict
+        run_name = request.get('run_name', '')
+        test_file_path = request.get('test_file_path', '')
+        test_type = request.get('test_type', '')
+        env = request.get('env', '')
+        
         # Prepare log and report file paths
-        log_file = f"logs/{request.run_name}.txt"
-        report_file = f"reports/{request.run_name}.txt"
+        log_file = f"logs/{run_name}.txt"
+        report_file = f"reports/{run_name}.txt"
         
         # Prepare command
         cmd = [
             "python", "quantumqa_runner.py", 
-            request.test_file_path,
-            "--type", request.test_type.lower(),
-            "--run-name", request.run_name
+            test_file_path,
+            "--type", test_type.lower(),
+            "--run-name", run_name
         ]
         
         # Handle credentials
+        credentials = request.get('credentials')
+        credential_id = request.get('credential_id')
         creds_content = ""
-        if request.credentials:
-            if request.credentials.username and request.credentials.password:
+        
+        if credentials:
+            if credentials.get('username') and credentials.get('password'):
                 creds_content += f"""
 ui_credentials:
-  username: "{request.credentials.username}"
-  password: "{request.credentials.password}"
-  base_url: "{request.env}"
+  username: "{credentials.get('username')}"
+  password: "{credentials.get('password')}"
+  base_url: "{env}"
 """
-            if request.credentials.api_key:
+            if credentials.get('api_key'):
                 creds_content += f"""
 api_credentials:
-  api_key: "{request.credentials.api_key}"
-  base_url: "{request.env}"
+  api_key: "{credentials.get('api_key')}"
+  base_url: "{env}"
 """
-        elif request.credential_id:
+        elif credential_id:
             # Load stored credentials
-            stored_creds = get_credential_for_run(request.credential_id)
+            stored_creds = get_credential_for_run(credential_id)
             if not stored_creds:
                 return {
-                    "run_name": request.run_name,
+                    "run_name": run_name,
                     "status": "ERROR",
-                    "error": f"Credential '{request.credential_id}' not found or invalid",
+                    "error": f"Credential '{credential_id}' not found or invalid",
                     "end_time": datetime.now().isoformat()
                 }
             
@@ -1567,31 +1576,32 @@ api_credentials:
 ui_credentials:
   username: "{stored_creds.username}"
   password: "{stored_creds.password}"
-  base_url: "{request.env}"
+  base_url: "{env}"
 """
             if stored_creds.api_key:
                 creds_content += f"""
 api_credentials:
   api_key: "{stored_creds.api_key}"
-  base_url: "{request.env}"
+  base_url: "{env}"
 """
         
         if creds_content:
             # Create temporary credentials file
-            creds_file = f"logs/{request.run_name}_creds.yaml"
+            creds_file = f"logs/{run_name}_creds.yaml"
             with open(creds_file, 'w') as f:
                 f.write(creds_content)
             cmd.extend(["--credentials", creds_file])
         
         # Add options
-        if request.test_type == "UI":
-            if not request.options.headless:
+        options = request.get('options', {})
+        if test_type == "UI":
+            if not options.get('headless', True):
                 cmd.append("--visible")
-            if getattr(request.options, 'performance_measurement', False):
+            if options.get('performance_measurement', False):
                 cmd.append("--performance-measurement")
-            if getattr(request.options, 'disable_caching', False):
+            if options.get('disable_caching', False):
                 cmd.append("--disable-caching")
-            if getattr(request.options, 'disable_performance', False):
+            if options.get('disable_performance', False):
                 cmd.append("--disable-performance")
         
         logger.info(f"Executing command: {' '.join(cmd)}")
@@ -1629,11 +1639,11 @@ api_credentials:
                 "command": " ".join(cmd)
             }
             
-            logger.info(f"Started detached process PID {process.pid} for test: {request.run_name}")
+            logger.info(f"Started detached process PID {process.pid} for test: {run_name}")
             
             # Return immediately - process will be monitored by background task
             return {
-                "run_name": request.run_name,
+                "run_name": run_name,
                 "status": "RUNNING",
                 "pid": process.pid,
                 "start_time": start_time.isoformat(),
@@ -1652,7 +1662,7 @@ api_credentials:
                 log_f.write(f"Failed at: {datetime.now().isoformat()}\n")
             
             return {
-                "run_name": request.run_name,
+                "run_name": run_name,
                 "status": "ERROR",
                 "error": error_msg,
                 "end_time": datetime.now().isoformat()
@@ -1661,37 +1671,42 @@ api_credentials:
     except Exception as e:
         logger.error(f"Error executing test: {e}")
         return {
-            "run_name": request.run_name,
-            "status": "ERROR",
+            "run_name": run_name,
+            "status": "ERROR", 
             "error": str(e),
             "end_time": datetime.now().isoformat()
         }
 
 @app.post("/runs", status_code=202, summary="Execute Test Run")
-async def run_test(request: RunTestRequest, background_tasks: BackgroundTasks):
+async def run_test(request: dict, background_tasks: BackgroundTasks):
     """Execute a test with the given configuration."""
     try:
-        # Validate request
-        if request.test_type not in ["UI", "API"]:
+        # Basic validation (manual, not Pydantic)
+        test_type = request.get('test_type', '')
+        if test_type not in ["UI", "API"]:
             raise HTTPException(status_code=400, detail="test_type must be 'UI' or 'API'")
         
         # Check if test file exists
-        if not Path(request.test_file_path).exists():
-            raise HTTPException(status_code=404, detail=f"Test file not found: {request.test_file_path}")
+        test_file_path = request.get('test_file_path', '')
+        if not test_file_path or not Path(test_file_path).exists():
+            raise HTTPException(status_code=404, detail=f"Test file not found: {test_file_path}")
         
         # Check if run with same name is already running
-        if request.run_name in running_tests:
-            raise HTTPException(status_code=409, detail=f"Test run '{request.run_name}' is already in progress")
+        run_name = request.get('run_name', '')
+        if run_name in running_tests:
+            raise HTTPException(status_code=409, detail=f"Test run '{run_name}' is already in progress")
         
         # Validate credentials
-        if not request.credentials and not request.credential_id:
+        credentials = request.get('credentials')
+        credential_id = request.get('credential_id')
+        if not credentials and not credential_id:
             raise HTTPException(status_code=400, detail="Either credentials or credential_id is required")
         
-        if request.credentials:
-            if request.test_type == "UI" and not (request.credentials.username and request.credentials.password):
+        if credentials:
+            if test_type == "UI" and not (credentials.get('username') and credentials.get('password')):
                 raise HTTPException(status_code=400, detail="username and password are required for UI tests")
             
-            if request.test_type == "API" and not request.credentials.api_key:
+            if test_type == "API" and not credentials.get('api_key'):
                 raise HTTPException(status_code=400, detail="api_key is required for API tests")
         
         # Execute test and get process info
@@ -1702,11 +1717,12 @@ async def run_test(request: RunTestRequest, background_tasks: BackgroundTasks):
             raise HTTPException(status_code=500, detail=result.get("error", "Failed to start test"))
         
         # Create initial report with all steps in 'waiting' status
+        env = request.get('env', '')
         initial_report = create_initial_report(
-            request.run_name,
-            request.test_file_path, 
-            request.test_type,
-            request.env,
+            run_name,
+            test_file_path, 
+            test_type,
+            env,
             result["start_time"]
         )
         
@@ -1714,12 +1730,12 @@ async def run_test(request: RunTestRequest, background_tasks: BackgroundTasks):
             raise HTTPException(status_code=500, detail="Failed to create initial test report")
         
         # Store process info in running_tests for monitoring
-        running_tests[request.run_name] = {
+        running_tests[run_name] = {
             "status": "RUNNING",
             "start_time": result["start_time"],
-            "test_file": request.test_file_path,
-            "test_type": request.test_type,
-            "environment": request.env,
+            "test_file": test_file_path,
+            "test_type": test_type,
+            "environment": env,
             "process": result["process_info"]["process"],
             "pid": result["pid"],
             "log_file": result["log_file"],
@@ -1729,18 +1745,18 @@ async def run_test(request: RunTestRequest, background_tasks: BackgroundTasks):
         
         # Start background monitoring task
         async def monitor_test_process():
-            await monitor_running_test(request.run_name)
+            await monitor_running_test(run_name)
         
         background_tasks.add_task(monitor_test_process)
         
-        logger.info(f"Started test run: {request.run_name}")
+        logger.info(f"Started test run: {run_name}")
         
         return {
             "message": "Test execution started",
-            "run_name": request.run_name,
+            "run_name": run_name,
             "status": "RUNNING",
-            "log_file_url": f"/runs/{request.run_name}/logs",
-            "report_file_url": f"/runs/{request.run_name}/report",
+            "log_file_url": f"/runs/{run_name}/logs",
+            "report_file_url": f"/runs/{run_name}/report",
             "started_at": datetime.now().isoformat()
         }
         
@@ -1942,11 +1958,13 @@ async def get_run(run_name: str) -> RunDetail:
             total_steps = report_data.get("steps_total", len(steps))
             passed_steps = report_data.get("steps_passed", 0)
             failed_steps = report_data.get("steps_failed", 0)
+            skipped_steps = report_data.get("steps_skipped", 0)
             executed_steps = report_data.get("steps_executed", 0)
         else:
             # Fallback: parse logs for step information (legacy reports)
             log_file = Path(f"logs/{run_name}.txt")
             steps, total_steps, passed_steps, failed_steps = parse_log_file_for_steps(log_file)
+            skipped_steps = 0  # No way to calculate from legacy logs
             executed_steps = len(steps)
         
         # Find GIF file if available
