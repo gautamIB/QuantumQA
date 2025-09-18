@@ -574,6 +574,13 @@ def update_step_status(run_name: str,
         step_found = False
         for step in report.get("steps", []):
             if step["step_number"] == step_number:
+                # FIX 2: Prevent overriding failed steps with passed status
+                if step.get("failure_reason") and status == "passed":
+                    logger.warning(
+                        f"Prevented overriding failed step {step_number} (reason: '{step.get('failure_reason')[:50]}...') to passed status"
+                    )
+                    return False
+                
                 step["status"] = status
                 step["duration_seconds"] = duration
                 step["completed_at"] = datetime.now().isoformat()
@@ -582,6 +589,9 @@ def update_step_status(run_name: str,
                     step["started_at"] = datetime.now().isoformat()
                 elif status == "failed" and failure_reason:
                     step["failure_reason"] = failure_reason
+                # FIX 2b: Also set failure_reason when status is failed, even without explicit reason
+                elif status == "failed" and not step.get("failure_reason"):
+                    step["failure_reason"] = failure_reason or "Step execution failed"
 
                 step_found = True
                 break
@@ -673,6 +683,10 @@ async def parse_and_update_steps_from_log(run_name: str, log_content: str,
         lines = log_content.split('\n')
         current_running_report_step = None
         latest_execution_step = last_step_detected
+        
+        # FIX 3: Track completed steps to prevent state corruption
+        completed_steps = set()
+        failed_steps = set()
 
         # PHASE 1: Build complete mapping by processing all start messages first
         for line in lines:
@@ -757,6 +771,12 @@ async def parse_and_update_steps_from_log(run_name: str, log_content: str,
                 r'✅ Step (\d+) completed successfully', line)
             if step_complete_match:
                 execution_step = int(step_complete_match.group(1))
+                
+                # FIX 3: Prevent double-processing of completed steps
+                if execution_step in completed_steps or execution_step in failed_steps:
+                    continue
+                    
+                completed_steps.add(execution_step)
 
                 # Extract duration
                 duration_match = re.search(r'\(([0-9.]+)s total\)', line)
@@ -791,6 +811,14 @@ async def parse_and_update_steps_from_log(run_name: str, log_content: str,
             step_fail_match = re.search(r'❌ Step (\d+) failed', line)
             if step_fail_match:
                 execution_step = int(step_fail_match.group(1))
+                
+                # FIX 3: Prevent double-processing and ensure failure takes precedence
+                if execution_step in failed_steps:
+                    continue
+                    
+                # Remove from completed if it was there (failure overrides completion)
+                completed_steps.discard(execution_step)
+                failed_steps.add(execution_step)
 
                 # Extract duration
                 duration_match = re.search(r'\(([0-9.]+)s total\)', line)
@@ -823,11 +851,14 @@ async def parse_and_update_steps_from_log(run_name: str, log_content: str,
 
             # 4. Look for general error indicators that might affect current step
             if (current_running_report_step
+                    and current_running_report_step not in failed_steps
                     and any(indicator in line.lower() for indicator in
                             ['error:', 'failed:', 'exception:', 'timeout:'])):
                 logger.debug(
                     f"Error detected, failing current running step {current_running_report_step}: {line}"
                 )
+                # FIX 3: Track this as a failed step to prevent double-processing
+                failed_steps.add(current_running_report_step)
                 update_step_status(run_name, current_running_report_step,
                                    "failed", line.strip())
                 current_running_report_step = None
@@ -951,11 +982,19 @@ async def monitor_running_test(run_name: str):
                                 if not step.get(
                                         "is_comment",
                                         False):  # Don't update comment steps
-                                    step["status"] = "passed"
-                                    step["completed_at"] = end_time.isoformat()
-                                    logger.info(
-                                        f"Auto-completed step {step['step_number']}: {step['instruction'][:50]}..."
-                                    )
+                                    # FIX 1: Preserve failed steps - only mark as passed if no failure reason exists
+                                    if step.get("failure_reason"):
+                                        step["status"] = "failed"
+                                        step["completed_at"] = end_time.isoformat()
+                                        logger.info(
+                                            f"Step {step['step_number']} kept as failed: {step.get('failure_reason', 'Unknown error')[:50]}..."
+                                        )
+                                    else:
+                                        step["status"] = "passed"
+                                        step["completed_at"] = end_time.isoformat()
+                                        logger.info(
+                                            f"Auto-completed step {step['step_number']}: {step['instruction'][:50]}..."
+                                        )
 
                         # Calculate final step statistics from the steps array
                         passed_count = sum(1 for s in steps
