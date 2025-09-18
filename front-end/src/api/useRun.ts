@@ -28,5 +28,8 @@ export const useRun = (runName?: string) => {
         },
         refetchOnWindowFocus: false,
         enabled: !!runName,
+        onError: (err: any) => {
+            console.log(err);
+        },
     });
 };

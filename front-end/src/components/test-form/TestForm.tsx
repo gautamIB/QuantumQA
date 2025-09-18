@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Button, FlexContainer, FlexItem, Input, Select, TextArea } from "@instabase.com/pollen";
 import { Box } from "@instabase.com/pollen";
 import styled from 'styled-components';
@@ -55,7 +55,7 @@ export const TestForm = ({
     setFormData: React.Dispatch<React.SetStateAction<TFormData>>;
     isReadOnly?: boolean;
 }) => {
-  const { mutateAsync: getTestmoSteps, isLoading } = useTestmoSteps();
+  const { mutateAsync: getTestmoSteps, isLoading, data: testmoSteps } = useTestmoSteps();
 
   const handleInputChange = (field: keyof TFormData, value: string | File | null) => {
     setFormData((prev: TFormData) => ({
@@ -72,6 +72,12 @@ export const TestForm = ({
       handleInputChange(FORM_LABELS.STEPS, steps);
     }
   };
+
+  useEffect(() => {
+    if (testmoSteps) {
+      handleInputChange(FORM_LABELS.STEPS, testmoSteps);
+    }
+  }, [testmoSteps]);
 
     return (
         <FormContainer>

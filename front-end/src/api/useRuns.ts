@@ -6,5 +6,8 @@ export const useRuns = () => {
         queryKey: [API_KEYS.RUNS],
         queryFn: () => fetch(API_ENDPOINTS.GET_RUNS).then(r => r.json()),
         refetchOnWindowFocus: false,
+        onError: (err: any) => {
+            console.log(err);
+        },
     });
 };

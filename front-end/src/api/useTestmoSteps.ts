@@ -12,9 +12,6 @@ export const useTestmoSteps = () => {
                 'Content-Type': 'application/json',
             },
         }).then(r => r.text()),
-        onSuccess: (data: string) => {
-            console.log(data);
-        },
         onError: (error: any) => {
             console.log(error);
         },
