@@ -39,7 +39,3 @@ Press Enter
 Wait for AI response to start streaming in the right panel
 Verify that response text appears gradually (streaming effect)
 Wait for streaming response to complete fully
-
-## === CONVERSATION DROPDOWN MENU VERIFICATION and RENAME ===
-Click on conversation name with arrow pointing down from top left panel and type "QuantumQA"
-Press Enter

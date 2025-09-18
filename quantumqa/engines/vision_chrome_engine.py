@@ -16,6 +16,7 @@ from ..agents.element_detector import ElementDetectorAgent
 from ..core.llm import VisionLLMClient
 from ..core.ui_context_manager import UIContextManager
 from ..core.models import ElementDetectionResult, Coordinates
+from ..utils.gif_creator import GifCreator
 
 
 class VisionChromeEngine:
@@ -106,6 +107,9 @@ class VisionChromeEngine:
         self.context = None
         self.page = None
         
+        # Run tracking
+        self.run_name = None
+        
         # Vision statistics
         self.vision_detections = 0
         self.traditional_fallbacks = 0
@@ -115,6 +119,10 @@ class VisionChromeEngine:
         self.smart_loading_saves = 0
         self.total_wait_time_saved = 0.0
         self.early_element_detections = 0
+        
+        # 🎬 GIF Creation: Initialize screenshot accumulator
+        self.gif_creator = GifCreator()
+        self._current_step = 0
         
         cache_status = "enabled" if enable_caching else "disabled"
         perf_status = "enabled" if performance_mode else "disabled"
@@ -363,6 +371,8 @@ class VisionChromeEngine:
             self._current_step = i
             
             try:
+                # 🎬 Take step screenshot for GIF
+                await self._take_step_screenshot(i)
                 # Analyze step for UI context creation (dropdowns, modals, etc.)
                 ui_context_created = self.ui_context_manager.analyze_step_for_context(i, instruction)
                 
@@ -1454,10 +1464,33 @@ Examples:
             
             await self.page.screenshot(path=screenshot_path, full_page=False)
             print(f"    📸 Screenshot for vision analysis: {screenshot_path}")
+            
+            # 🎬 Skip adding analysis screenshots to GIF to avoid overcrowding
+            # Only add if no step screenshot exists yet
+            if step_number not in self.gif_creator._step_screenshots:
+                self.gif_creator.add_step_screenshot(screenshot_path, step_number, "analysis")
+            
             return screenshot_path
         except Exception as e:
             print(f"    ⚠️ Could not take analysis screenshot: {e}")
             return None
+    
+    async def _take_step_screenshot(self, step_number: int) -> str:
+        """Take screenshot at the beginning of each step for GIF creation."""
+        Path("test_results/steps").mkdir(parents=True, exist_ok=True)
+        screenshot_path = f"test_results/steps/vision_step_{step_number}_start.png"
+        
+        try:
+            await self.page.screenshot(path=screenshot_path)
+            print(f"    📸 Vision Step {step_number} screenshot: {screenshot_path}")
+            
+            # 🎬 Add to GIF queue (step screenshot - lowest priority)
+            self.gif_creator.add_step_screenshot(screenshot_path, step_number, "step_start")
+            
+            return screenshot_path
+        except Exception as e:
+            print(f"    ⚠️ Could not take step screenshot: {e}")
+            return ""
     
     async def _click_at_coordinates(self, coordinates: Coordinates) -> bool:
         """Click at specific coordinates determined by vision with enhanced visual feedback and navigation handling."""
@@ -1681,6 +1714,9 @@ Examples:
             
             await self.page.screenshot(path=screenshot_path)
             print(f"    📸 Action screenshot: {screenshot_path}")
+            
+            # 🎬 Add to GIF queue (action screenshot - high priority, replaces step screenshot)
+            self.gif_creator.add_step_screenshot(screenshot_path, step_num, "action")
             
         except Exception as e:
             print(f"    ⚠️ Could not capture action screenshot: {e}")
@@ -1996,6 +2032,10 @@ Examples:
         try:
             await self.page.screenshot(path=screenshot_path, full_page=True)
             print(f"    📸 Debug screenshot: {screenshot_path}")
+            
+            # 🎬 Skip adding debug screenshots to GIF to avoid overcrowding
+            # Debug screenshots are not usually interesting for GIFs
+            
             return screenshot_path
         except Exception as e:
             print(f"    ⚠️ Could not save debug screenshot: {e}")
@@ -2095,8 +2135,9 @@ Examples:
         return report
     
     async def _save_final_screenshot(self, instruction_file: str) -> str:
-        """Save final test screenshot."""
+        """Save final test screenshot and create GIF from all accumulated screenshots."""
         
+        Path("reports").mkdir(exist_ok=True)
         Path("test_results").mkdir(exist_ok=True)
         clean_filename = instruction_file.replace('/', '_').replace('.txt', '')
         screenshot_path = f"test_results/final_vision_{clean_filename}.png"
@@ -2104,6 +2145,24 @@ Examples:
         try:
             await self.page.screenshot(path=screenshot_path, full_page=True)
             print(f"📸 Final screenshot: {screenshot_path}")
+            
+            # 🎬 Add final screenshot to GIF queue
+            self.gif_creator.add_screenshot(screenshot_path)
+            
+            # 🎬 Create GIF from all accumulated screenshots
+            if self.gif_creator.get_screenshot_count() > 1:
+                # Use run_name as custom filename if provided, otherwise use title-based naming
+                custom_filename = f"{self.run_name}.gif" if self.run_name else None
+                gif_path = self.gif_creator.create_gif(
+                    "reports", 
+                    title=f"vision_test_{clean_filename}",
+                    custom_filename=custom_filename
+                )
+                if gif_path:
+                    print(f"🎬 Test execution GIF created: {gif_path}")
+            else:
+                print("    ℹ️ Only one screenshot available - skipping GIF creation")
+            
             return screenshot_path
         except Exception as e:
             print(f"⚠️ Could not save final screenshot: {e}")
@@ -2120,6 +2179,10 @@ Examples:
             instructions = [line.strip() for line in f.readlines() if line.strip()]
         
         return instructions
+    
+    def set_run_name(self, run_name: str):
+        """Set the run name for GIF file naming."""
+        self.run_name = run_name
     
     async def cleanup(self):
         """Clean up browser and vision resources."""
@@ -2156,6 +2219,18 @@ Examples:
             
         except Exception as e:
             print(f"⚠️ Cleanup warning: {e}")
+    
+    def configure_gif_settings(self, duration: int = None, loop: int = None, optimize: bool = None) -> None:
+        """
+        Configure GIF creation settings.
+        
+        Args:
+            duration: Milliseconds per frame (default: 750ms for 2x speed)
+            loop: Number of loops (0 = infinite)
+            optimize: Whether to optimize GIF size
+        """
+        self.gif_creator.set_gif_settings(duration=duration, loop=loop, optimize=optimize)
+        print(f"🎬 GIF settings updated for Vision Engine")
     
     def get_engine_stats(self) -> Dict[str, Any]:
         """Get comprehensive engine statistics."""
