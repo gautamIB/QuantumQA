@@ -186,12 +186,18 @@ class RunPerformance(BaseModel):
 class RunInfo(BaseModel):
     run_name: str
     test_file: str
+    test_name: str  # Test name extracted from test_file (filename without extension)
     test_type: str
     status: str
     started_at: str
     completed_at: Optional[str] = None
     duration_seconds: Optional[float] = None
     success_rate: Optional[float] = None
+    # Consolidated step statistics
+    steps_total: Optional[int] = None
+    steps_passed: Optional[int] = None
+    steps_failed: Optional[int] = None
+    steps_executed: Optional[int] = None  # Total executed (passed + failed)
     log_file_url: str
     report_file_url: str
 
@@ -385,6 +391,19 @@ def find_gif_file(run_name: str) -> Optional[str]:
             return str(gif_file)
     
     return None
+
+def extract_test_name_from_file(test_file: str) -> str:
+    """Extract test name from test file path (filename without extension)."""
+    try:
+        if not test_file or test_file.strip() == "":
+            return "unknown"
+        # Extract filename from path
+        filename = Path(test_file).name
+        # Remove extension
+        test_name = Path(filename).stem
+        return test_name if test_name else "unknown"
+    except Exception:
+        return "unknown"
 
 def create_initial_report(run_name: str, test_file_path: str, test_type: str, environment: str, start_time: str) -> Dict[str, Any]:
     """Create initial report file with all steps in 'waiting' status."""
@@ -1778,26 +1797,40 @@ async def get_runs(
         runs = []
         reports_folder = Path("reports")
         
-        # Add completed runs from reports
+        # Add completed runs from reports (exclude currently running tests)
         if reports_folder.exists():
             for file_path in reports_folder.iterdir():
                 if file_path.is_file() and file_path.suffix == '.txt':
+                    run_name = file_path.stem
+                    
+                    # Skip if this test is currently running to avoid duplicates
+                    if run_name in running_tests:
+                        logger.info(f"Skipping {run_name} from reports folder - test is currently running (avoiding duplicate)")
+                        continue
+                    
                     try:
                         # Try to read report as JSON
                         with open(file_path, 'r') as f:
                             report_data = json.load(f)
                         
-                        run_name = file_path.stem
+                        test_file = report_data.get("test_file", "unknown")
+                        test_name = extract_test_name_from_file(test_file)
                         
                         run_info = RunInfo(
                             run_name=run_name,
-                            test_file=report_data.get("test_file", "unknown"),
+                            test_file=test_file,
+                            test_name=test_name,
                             test_type=report_data.get("test_type", "unknown"),
                             status=report_data.get("status", "unknown"),
                             started_at=report_data.get("start_time", "unknown"),
                             completed_at=report_data.get("end_time"),
                             duration_seconds=report_data.get("duration_seconds"),
                             success_rate=report_data.get("success_rate"),
+                            # Extract consolidated step statistics
+                            steps_total=report_data.get("steps_total"),
+                            steps_passed=report_data.get("steps_passed"),
+                            steps_failed=report_data.get("steps_failed"),
+                            steps_executed=report_data.get("steps_executed"),
                             log_file_url=f"/runs/{run_name}/logs",
                             report_file_url=f"/runs/{run_name}/report"
                         )
@@ -1807,14 +1840,19 @@ async def get_runs(
                     except (json.JSONDecodeError, KeyError):
                         # Handle non-JSON report files
                         stat = file_path.stat()
-                        run_name = file_path.stem
                         
                         run_info = RunInfo(
                             run_name=run_name,
                             test_file="unknown",
+                            test_name="unknown",
                             test_type="unknown",
                             status="COMPLETED",
                             started_at=datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                            # No step statistics available for legacy reports
+                            steps_total=None,
+                            steps_passed=None,
+                            steps_failed=None,
+                            steps_executed=None,
                             log_file_url=f"/runs/{run_name}/logs",
                             report_file_url=f"/runs/{run_name}/report"
                         )
@@ -1822,12 +1860,39 @@ async def get_runs(
         
         # Add currently running tests
         for run_name, run_data in running_tests.items():
+            test_file = run_data.get("test_file", "unknown")
+            test_name = extract_test_name_from_file(test_file)
+            
+            # Try to get current step statistics from report if available
+            steps_total = None
+            steps_passed = None
+            steps_failed = None
+            steps_executed = None
+            
+            try:
+                report_file = Path(f"reports/{run_name}.txt")
+                if report_file.exists():
+                    with open(report_file, 'r') as f:
+                        report_data = json.load(f)
+                    steps_total = report_data.get("steps_total")
+                    steps_passed = report_data.get("steps_passed")
+                    steps_failed = report_data.get("steps_failed")
+                    steps_executed = report_data.get("steps_executed")
+            except Exception:
+                pass  # Use default None values
+            
             run_info = RunInfo(
                 run_name=run_name,
-                test_file=run_data.get("test_file", "unknown"),
+                test_file=test_file,
+                test_name=test_name,
                 test_type=run_data.get("test_type", "unknown"),
                 status="RUNNING",
                 started_at=run_data.get("start_time", "unknown"),
+                # Include step statistics if available
+                steps_total=steps_total,
+                steps_passed=steps_passed,
+                steps_failed=steps_failed,
+                steps_executed=steps_executed,
                 log_file_url=f"/runs/{run_name}/logs",
                 report_file_url=f"/runs/{run_name}/report"
             )
