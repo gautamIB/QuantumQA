@@ -1,0 +1,85 @@
+Navigate to https://aihub.instabase.com
+Click on workspaces
+Verify that workspaces page loads successfully
+Verify that page has left panel with workspaces list
+Click on My workspace
+Verify that My-Workspace loads successfully
+Verify that workspace has 4 tab options
+Verify that create tab is selected by default
+Verify that other tabs like Deploy, Review, and Data are visible
+
+# === CONVERSATION CREATION ===
+Verify that Create button with border and dropdown arrow is visible (NOT the Create tab)
+Click on Create dropdown button
+verify that dropdown has the button for APP, Conversation, Chatbot
+Click on Conversation button from dropdown option
+Verify that it redirect to new page for conversation loading
+verify that page gets loaded successfully
+
+# === CONVERSATION INTERFACE INITIAL STATE VERIFICATION ===
+Verify that conversation interface has 3-panel layout
+Verify that left panel is initially empty (no files shown)
+Verify that center panel shows file upload placeholder with "NO FILES ADDED YET"
+Verify that center panel has "Drop anywhere to upload" message
+Verify that center panel shows "Select files or folders, browse drives or paste a URL"
+Verify that right panel shows "Sample Prompts" section
+Verify that right panel has clickable sample prompt options
+Verify that message input field "Query your files" is visible at bottom right
+Verify that conversation title shows "New Conversation" at the top
+
+# === CONVERSATION DROPDOWN MENU VERIFICATION ===
+Verify that top left shows conversation name and a dropdown arrow with arrow pointing down
+Verify that dropdown arrow is clickable
+Click on dropdown arrow
+Verify that dropdown shows options: "Create Conversation", "Clear Chat History", "Recent Conversations", "Digitization Settings", "Delete Conversation"
+Click outside to close dropdown menu
+
+# === MANDATORY DOCUMENT UPLOAD ===
+Verify that file upload is required before starting conversation
+Click on the "files", it should be highlighted with purple color
+# PLACEHOLDER: User should replace this path with actual local file path
+Upload file from path: "/Users/gautam/Desktop/Screenshot 2025-08-30 at 9.50.24 PM.png"
+Verify that file selection dialog appears
+Verify that selected file is accepted for upload
+
+# === DOCUMENT PROCESSING VERIFICATION ===
+Verify that processing screen appears in bottom left corner
+Verify that processing meter shows percentage from 0-100%
+Verify that processing status indicates "Processing..." or "Digitizing..."
+Wait for processing to complete (10 seconds to 2 minutes)
+Verify that processing reaches 100% completion
+Verify that processing screen disappears when complete
+
+# === POST-UPLOAD INTERFACE VERIFICATION ===
+Verify that left panel now shows list of uploaded files
+Verify that uploaded document appears in the left panel file list
+Click on file name in left panel below the files sections
+Verify that center panel displays the selected file content
+Verify that center panel shows document preview or content
+Verify that right panel still shows conversation area
+Verify that sample prompts are still visible (before first message)
+
+# === CONVERSATION INTERACTION - FIRST MESSAGE ===
+Look for message input field in right panel
+Verify that It is available in the bottom of right panel 
+Type "Summarise this document in 100 words in Spanish" in the message field
+Click send button or press Enter
+Verify that message appears in conversation history
+Verify that sample prompts section disappears from right panel
+Verify that conversation history area becomes active
+Verify that streaming response begins (AI starts typing indicator)
+
+# === STREAMING RESPONSE VERIFICATION ===
+Wait for AI response to start streaming in the right panel
+Verify that response text appears gradually (streaming effect)
+Verify that streaming continues until response is complete (10 seconds to 1 minute)
+Wait for streaming response to complete fully
+Verify that complete AI response is displayed in the right panel
+Verify that response is relevant to the uploaded document
+Verify that response appears in Spanish as requested
+
+# === CONVERSATION HISTORY VERIFICATION ===
+Verify that both user message and AI response are visible in right panel history section
+Verify that response has Instabase Icon in start of the response
+Verify that conversation history maintains chronological order
+Verify that conversation history is scrollable if content exceeds view

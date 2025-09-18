@@ -1,0 +1,21 @@
+Navigate to https://instabase.testmo.net
+Verify the Testmo login page loads successfully
+#Click on Log in with Okta
+#Verify the Testmo login page loads successfully
+#Type {cred:okta.email} in email field
+#Type {cred:okta.password} in password field
+#Wait for 45 seconds
+Click on Projects in the left sidebar
+Verify that projects page loads successfully
+Click on 'AI Hub' project
+Verify that AI Hub project dashboard loads successfully
+Click on 'Runs' in the left sidebar
+Verify that Runs page loads successfullyl
+Click on '25.38.0-aihub UAT'
+Verify that run details page loads successfully
+Click on Export button
+Verify that export dialog appears
+Click on Export to csv
+Click on Export button in the dialog box
+Wait for 5 seconds
+Verify that CSV file is downloaded
