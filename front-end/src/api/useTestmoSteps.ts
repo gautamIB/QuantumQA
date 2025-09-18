@@ -8,6 +8,9 @@ export const useTestmoSteps = () => {
             body: JSON.stringify({
                 test_url: testMoUrl,
             }),
+            headers: {
+                'Content-Type': 'application/json',
+            },
         }).then(r => r.text()),
         onSuccess: (data: string) => {
             console.log(data);

@@ -47,6 +47,7 @@ export enum FORM_LABELS {
     TEST_TYPE = 'testType',
     TEST_MO_URL = 'testMoUrl',
     STEPS = 'steps',
+    API_YAML = 'apiYaml',
 };
 
 export enum TEST_KEYS {
@@ -59,6 +60,7 @@ export enum TEST_KEYS {
     STATUS = 'status',
     TEST_MO_URL = 'test_mo_url',
     STEPS = 'instruction',
+    API_DOCUMENTATION = 'apis_documentation',
 }
 
 export enum RUN_KEYS {

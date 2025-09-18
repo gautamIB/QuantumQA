@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { TEST_OPTIONS } from "../../constants";
 import { FORM_LABELS } from "../../constants";
 import { useTestmoSteps } from '../../api/useTestmoSteps';
+import { parseYamlFile } from '../../utils/yamlParser';
 
 const FormContainer = styled(Box)`
   width: 690px;
@@ -28,6 +29,7 @@ export interface TFormData {
   [FORM_LABELS.TEST_TYPE]: string;
   [FORM_LABELS.TEST_MO_URL]: string;
   [FORM_LABELS.STEPS]: string;
+  [FORM_LABELS.API_YAML]?: File | null;
 }
 
 export const initialFormData: TFormData = {
@@ -35,6 +37,13 @@ export const initialFormData: TFormData = {
   [FORM_LABELS.TEST_TYPE]: TEST_OPTIONS.TEST_MO,
   [FORM_LABELS.TEST_MO_URL]: '',
   [FORM_LABELS.STEPS]: '',
+  [FORM_LABELS.API_YAML]: null,
+}
+
+const STEPS_LABEL: Record<TEST_OPTIONS, string> = {
+  [TEST_OPTIONS.TEST_MO]: 'Detailed steps from test mo',
+  [TEST_OPTIONS.END_TO_END_TEST]: 'Detailed step by step guide to test',
+  [TEST_OPTIONS.API_TEST]: 'APIs to be tested',
 }
 
 export const TestForm = ({
@@ -48,12 +57,22 @@ export const TestForm = ({
 }) => {
   const { mutateAsync: getTestmoSteps, isLoading } = useTestmoSteps();
 
-  const handleInputChange = (field: keyof TFormData, value: string) => {
+  const handleInputChange = (field: keyof TFormData, value: string | File | null) => {
     setFormData((prev: TFormData) => ({
       ...prev,
       [field]: value
     }));
   };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleInputChange(FORM_LABELS.API_YAML, file);
+      const steps = await parseYamlFile(file);
+      handleInputChange(FORM_LABELS.STEPS, steps);
+    }
+  };
+
     return (
         <FormContainer>
             <FlexContainer gap={5}>
@@ -86,7 +105,7 @@ export const TestForm = ({
                 />
               </FlexItem>
             </FlexContainer>
-            {formData[FORM_LABELS.TEST_TYPE] === TEST_OPTIONS.TEST_MO && (
+            {!isReadOnly && formData[FORM_LABELS.TEST_TYPE] === TEST_OPTIONS.TEST_MO && (
               <FlexContainer gap={2} mt={4} alignItems="flex-end">
                 <FlexItem grow={1} shrink={1}>
                   <Input
@@ -96,7 +115,6 @@ export const TestForm = ({
                     type="url"
                     label="Test mo's folder URL"
                     fullWidth
-                    disabled={isReadOnly}
                   />
                 </FlexItem>
                 <FlexItem>
@@ -105,7 +123,35 @@ export const TestForm = ({
                     label="Get steps"
                     onClick={() => getTestmoSteps(formData[FORM_LABELS.TEST_MO_URL])}
                     loading={isLoading}
-                    disabled={isReadOnly || !formData[FORM_LABELS.TEST_MO_URL]}
+                    disabled={!formData[FORM_LABELS.TEST_MO_URL]}
+                  />
+                </FlexItem>
+              </FlexContainer>
+            )}
+            {!isReadOnly && formData[FORM_LABELS.TEST_TYPE] === TEST_OPTIONS.API_TEST && (
+              <FlexContainer gap={2} mt={4} alignItems="flex-end">
+                <input
+                  type="file"
+                  id="file-picker"
+                  accept=".yaml,.yml"
+                  hidden
+                  onChange={handleFileChange}
+                />
+                <FlexItem grow={1} shrink={1}>
+                  <Input
+                    placeholder="No file selected"
+                    value={formData[FORM_LABELS.API_YAML]?.name || "No file selected"}
+                    label="API YAML file"
+                    fullWidth
+                    disabled
+                  />
+                </FlexItem>
+                <FlexItem>
+                  <Button
+                    intent="primary"
+                    label="Upload"
+                    as="label"
+                    htmlFor="file-picker"
                   />
                 </FlexItem>
               </FlexContainer>
@@ -115,12 +161,13 @@ export const TestForm = ({
                 placeholder="Enter the steps"
                 value={formData[FORM_LABELS.STEPS]}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleInputChange(FORM_LABELS.STEPS, e.target.value)}
-                rows={20}
-                label={formData[FORM_LABELS.TEST_TYPE] === TEST_OPTIONS.TEST_MO ? "Detailed steps from test mo" : "Detailed steps"}
+                rows={25}
+                label={STEPS_LABEL[formData[FORM_LABELS.TEST_TYPE] as TEST_OPTIONS]}
                 fullWidth
-                disabled={formData[FORM_LABELS.TEST_TYPE] === TEST_OPTIONS.TEST_MO || isReadOnly}
+                disabled={formData[FORM_LABELS.TEST_TYPE] !== TEST_OPTIONS.END_TO_END_TEST}
               />
             </Box>
           </FormContainer>
     );
 };
+

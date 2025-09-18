@@ -70,6 +70,7 @@ export const Runs: React.FC = () => {
       header: 'Run name',
       accessorKey: RUN_KEYS.RUN_NAME,
       sortingFn: 'text',
+      size: 250,
       cell: (cell: any) => (
         <Link
           as="button"
@@ -86,6 +87,7 @@ export const Runs: React.FC = () => {
       header: 'Test name',
       accessorKey: RUN_KEYS.TEST_NAME,
       sortingFn: 'text',
+      size: 250,
       cell: (cell: any) => (
         <Link
           as="button"
@@ -102,6 +104,7 @@ export const Runs: React.FC = () => {
       header: 'Test type',
       accessorKey: RUN_KEYS.TEST_TYPE,
       sortingFn: 'text',
+      size: 150,
       cell: (cell: any) => TEST_OPTIONS_LABEL_MAP[cell.row.original[RUN_KEYS.TEST_TYPE] as TEST_OPTIONS],
     },
     {
@@ -109,6 +112,7 @@ export const Runs: React.FC = () => {
       header: 'Status',
       accessorKey: RUN_KEYS.STATUS,
       sortingFn: 'text',
+      size: 150,
       cell: (cell: any) => {
         if (cell.row.original[RUN_KEYS.STATUS] === RUN_STATUS.COMPLETED) {
           return (
@@ -141,6 +145,7 @@ export const Runs: React.FC = () => {
       id: RUN_KEYS.SUCCESS_RATE,
       header: 'Break down',
       accessorKey: RUN_KEYS.SUCCESS_RATE,
+      size: 300,
       cell: (cell: any) => {
         if (cell.row.original[RUN_KEYS.STATUS] !== RUN_STATUS.IN_PROGRESS) {
           if (cell.row.original[RUN_KEYS.SUCCESS_COUNT] === cell.row.original[RUN_KEYS.TOTAL_COUNT]) {
