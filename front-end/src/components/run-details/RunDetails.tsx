@@ -23,7 +23,6 @@ const StyledFlexContainer = styled(FlexContainer)`
 `;
 
 export const RunDetails: React.FC<{ run: TRun, error: any, isLoading: boolean }> = ({ run, error, isLoading }) => {
-
   const navigate = useNavigate();
   const onLeftArrowClick = () => {
     navigate(ROUTES.RUNS);
@@ -53,7 +52,7 @@ export const RunDetails: React.FC<{ run: TRun, error: any, isLoading: boolean }>
     <Container>
         <FlexContainer mb={3} alignItems="center" gap={2}>
           <IconButton icon="arrow-left" onClick={onLeftArrowClick} label="Back" />
-          <H5>Run name</H5>
+          <H5>{run[RUN_KEYS.RUN_NAME]}</H5>
         </FlexContainer>
         <TestProgress
           totalCount={run[RUN_KEYS.TOTAL_COUNT]}
