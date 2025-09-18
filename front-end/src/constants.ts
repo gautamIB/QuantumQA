@@ -78,7 +78,7 @@ export enum RUN_KEYS {
     FAILED_COUNT = 'steps_failed',
     SKIPPED_COUNT = 'steps_skipped',
     ERROR_SUMMARY = 'error_summary',
-    GIF_FILE_PATH = 'gif_file_path',
+    GIF_FILE_PATH = 'gif_file_url',
     STEPS = 'steps',
 }
 

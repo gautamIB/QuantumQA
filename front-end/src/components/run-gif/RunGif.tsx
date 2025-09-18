@@ -8,13 +8,11 @@ const Container = styled(Box)`
   justify-content: center;
   align-items: center;
   width: 100%;
-  height: 400px;
   margin-top: 12px;
 `;
 
 const GifImage = styled.img`
-  max-width: 100%;
-  height: 100%;
+  width: 100%;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   object-fit: cover;

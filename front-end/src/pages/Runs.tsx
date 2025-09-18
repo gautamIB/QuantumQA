@@ -86,6 +86,16 @@ export const Runs: React.FC = () => {
       header: 'Test name',
       accessorKey: RUN_KEYS.TEST_NAME,
       sortingFn: 'text',
+      cell: (cell: any) => (
+        <Link
+          as="button"
+          intent="primary"
+          label={cell.row.original[RUN_KEYS.TEST_NAME]}
+          onClick={() => {
+            navigate(`${ROUTES.TESTS}/${cell.row.original[RUN_KEYS.TEST_NAME]}`);
+          }}
+        />
+      ),
     },
     {
       id: RUN_KEYS.TEST_TYPE,
@@ -132,7 +142,7 @@ export const Runs: React.FC = () => {
       header: 'Break down',
       accessorKey: RUN_KEYS.SUCCESS_RATE,
       cell: (cell: any) => {
-        if (cell.row.original[RUN_KEYS.STATUS] === RUN_STATUS.COMPLETED) {
+        if (cell.row.original[RUN_KEYS.STATUS] !== RUN_STATUS.IN_PROGRESS) {
           if (cell.row.original[RUN_KEYS.SUCCESS_COUNT] === cell.row.original[RUN_KEYS.TOTAL_COUNT]) {
             return (
               <FlexContainer alignItems="center" gap={1}>

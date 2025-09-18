@@ -45,7 +45,7 @@ export const Run: React.FC = () => {
     {
       id:  "gif",
       label: "GIF",
-      render: () => <RunGif gifUrl={`http://localhost:8000/${data?.[RUN_KEYS.GIF_FILE_PATH]}`} />,
+      render: () => <RunGif gifUrl={data?.[RUN_KEYS.GIF_FILE_PATH]} />,
       disabled: !data?.[RUN_KEYS.GIF_FILE_PATH],
     },
   ];
