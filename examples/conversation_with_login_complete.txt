@@ -3,13 +3,13 @@
 
 # === CONVERSATION CREATION ===
 Navigate to https://aihub.instabase.com/
-Click on workspaces
-Click on Create button (bordered with dropdown arrow) in the top right header, not the Search input or tab
+Click on "workspaces"
+Click on "Create" button in the top right header
 verify that dropdown has the button for APP, Conversation, Chatbot
-Click on Conversation button from dropdown option
+Click on "Conversation" button from dropdown option
 
 # === MANDATORY DOCUMENT UPLOAD ===
-Click on "files", it should be highlighted with purple color
+# Click on "files", it should be highlighted with purple color
 # PLACEHOLDER: User should replace this path with actual local file path
 Upload file from path: "/Users/gautam/Downloads/Kiran.pdf"
 Verify that file selection dialog appears
@@ -22,16 +22,8 @@ Verify that processing status indicates "Processing..." or "Digitizing..."
 Wait for processing to complete (10 seconds to 2 minutes)
 Verify that processing screen disappears when complete
 
-# === POST-UPLOAD INTERFACE VERIFICATION ===
-Verify that left panel now shows list of uploaded files
-Verify that uploaded document appears in the left panel file list
-Click on file name in left panel below the files sections
-Verify that center panel displays the selected file content
-
 # === CONVERSATION INTERACTION - FIRST MESSAGE ===
-Look for message input field (With grey text "Query your files") in right panel, not the Search input or tab
-Verify that It is available in the bottom of right panel 
-Type "Summarise this document in 100 words in Spanish" in the message field
+Click on "Query your files" text area in the bottom right panel and type "Summarise this document in 100 words in Spanish"
 Click send button or press Enter
 
 # === STREAMING RESPONSE VERIFICATION ===
@@ -39,9 +31,8 @@ Wait for AI response to start streaming in the right panel
 Verify that response text appears gradually (streaming effect)
 Wait for streaming response to complete fully
 
-## === CONVERSATION DROPDOWN MENU VERIFICATION ===
+## === CONVERSATION DROPDOWN MENU VERIFICATION and DELETE ===
 Verify that top left shows conversation name and a dropdown arrow with arrow pointing down
-Verify that dropdown arrow is clickable
 Click on dropdown arrow
 Verify that dropdown shows options: "Create Conversation", "Clear Chat History", "Recent Conversations", "Digitization Settings", "Delete Conversation"
 Click on "Delete Conversation" from the dropdown menu

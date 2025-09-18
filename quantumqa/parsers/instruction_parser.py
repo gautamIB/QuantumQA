@@ -174,42 +174,44 @@ class InstructionParser:
         
         # Extract target element text
         target = None
-
-        # First try to extract quoted text (highest priority)
-        quoted_pattern = r"click\s+(?:on\s+)?['\"]([^'\"]+)['\"]"
-        quoted_match = re.search(quoted_pattern, instruction, re.IGNORECASE)
-        if quoted_match:
-            # If quoted text is found, use it as is (preserving spaces and case)
-            target = quoted_match.group(1)
-            print(f"    🔍 Extracted quoted text: '{target}'")
-        else:
-            # If extractor specifies target index, use it
-            if extractor and "target" in extractor and isinstance(
-                    extractor["target"], int):
-                target = match.group(extractor["target"]).strip()
-                print(f"    🔍 Using extractor target: '{target}'")
-            else:
-                # Try to extract full text (non-quoted)
-                full_text_pattern = r"click\s+(?:on\s+)?(.*?)(?:\s+button|\s+link|\s+element|$)"
-                full_text_match = re.search(full_text_pattern, instruction,
-                                            re.IGNORECASE)
-                if full_text_match:
-                    target = full_text_match.group(1).strip()
-                    print(f"    🔍 Extracted full text: '{target}'")
-
-                # If still no match, try the original patterns as fallback
-                if not target:
-                    click_patterns = [
-                        r'click\s+(?:on\s+)?(.+?)(?:\s+button|\s+link|\s+element|$)',
-                    ]
-
-                    for pattern in click_patterns:
-                        target_match = re.search(pattern, instruction.lower())
-                        if target_match:
-                            target = target_match.group(1).strip()
-                            print(f"    🔍 Fallback extraction: '{target}'")
-                            break
-
+        
+        # Try common click patterns with better stop word handling
+        click_patterns = [
+            # First priority: Extract exact quoted text
+            r'click (?:on )?["\']([^"\']+)["\']',
+            # Second priority: Common elements with specific endings  
+            r'click (?:on )?(?:the )?([^"\']+?)(?:\s+(?:button|link|element|field|area|input|dropdown|tab|option))',
+            # Third priority: General patterns
+            r'click (?:on )?(?:the )?([^"\']+?)(?:\s+in\s+|\s*$)',
+            r'click\s+(.+?)(?:\s+button|\s+link|\s+element|$)',
+        ]
+        
+        for pattern in click_patterns:
+            target_match = re.search(pattern, instruction.lower())
+            if target_match:
+                raw_target = target_match.group(1).strip()
+                
+                # Filter out stop words from the beginning and end
+                target_words = raw_target.split()
+                # Remove leading stop words
+                while target_words and target_words[0] in STOP_WORDS:
+                    target_words.pop(0)
+                # Remove trailing stop words
+                while target_words and target_words[-1] in STOP_WORDS:
+                    target_words.pop()
+                
+                if target_words:
+                    target = ' '.join(target_words)
+                    # Strip trailing punctuation such as commas or quotes that leak from sentence
+                    target = target.rstrip(",.'\"”’`)")
+                    break
+                else:
+                    # If all words were stop words, keep the original
+                    # Strip trailing punctuation for robustness
+                    target = raw_target.rstrip(",.'\"”’`)")
+                    break
+        
+        
         # Extract context clues
         context = self._extract_context_clues(instruction)
 
@@ -225,8 +227,29 @@ class InstructionParser:
     def _extract_type_params(self, instruction: str, match: re.Match,
                              extractor: Dict) -> Dict[str, Any]:
         """Extract typing parameters."""
-
-        # Pattern: "Type [text] in [field]" - Use original instruction to preserve case
+        
+        # Check if this is a combined click and type action
+        if extractor.get("combined_action"):
+            # Extract from regex match groups
+            target_group = extractor.get("target", 1)
+            text_group = extractor.get("text", 2)
+            
+            target = match.group(target_group).strip() if match and match.groups() else ""
+            text = match.group(text_group).strip() if match and match.groups() else ""
+            
+            # Clean up target (remove quotes if present)
+            target = target.strip('"\'')
+            
+            # For combined actions, use the target as the field and add click action
+            return {
+                "text": text,
+                "field": target,  # The same target we click on
+                "target": target,  # Also set as target for click
+                "combined_action": True,
+                "field_type": None
+            }
+        
+        # Standard type action: "Type [text] in [field]" - Use original instruction to preserve case
         type_pattern = r'type\s+["\']?([^"\']+?)["\']?\s+(?:in|into)\s+(.+?)(?:\s+field|$)'
         type_match = re.search(
             type_pattern, instruction, re.IGNORECASE

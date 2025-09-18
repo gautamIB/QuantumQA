@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 async def find_and_click_most_relevant_element(
-        user_goal: str,
+        action_plan: Dict[str, Any],
         button_text: str = None,
         target: str = None,
         normalized_targets: List[str] = None,
@@ -36,6 +36,8 @@ async def find_and_click_most_relevant_element(
     Returns:
         Coordinates of the element if found, None otherwise
     """
+    user_goal = action_plan["raw_instruction"]
+    action_type = action_plan["action"]
     if page is None:
         logger.error("Page object not available")
         return None
@@ -46,7 +48,8 @@ async def find_and_click_most_relevant_element(
         button_text_words.append(target.lower().strip())
     button_text_words.extend(
         button_text.lower().split(',') if button_text else [])
-    button_text = ', '.join(list(dict.fromkeys(button_text_words))).strip()
+    button_text_words = list(dict.fromkeys(button_text_words))
+    button_text = ', '.join(button_text_words).strip()
     print(f"Final Button text: {button_text}")
 
     # Wait for target elements to be visible before proceeding
@@ -55,7 +58,9 @@ async def find_and_click_most_relevant_element(
     )
 
     try:
-        print(f"Finding most relevant element for goal: '{user_goal}'")
+        print(
+            f"Action type: {action_type}, Finding most relevant element for goal: '{user_goal}'"
+        )
         # button_text = button_text.lower() if button_text else target.lower()
         # 1. Extract all clickable elements using Playwright's API
         # This includes buttons, links, and elements with an onclick attribute
@@ -72,14 +77,59 @@ async def find_and_click_most_relevant_element(
         # Combine selectors for a single query
         combined_selector = ', '.join(clickable_selectors)
 
+        if action_type == "type":
+            # add the element selects for type action
+            type_selectors = [
+                # Standard input types
+                f"input[type='text']",
+                f"input[type='email']",
+                f"input[type='password']",
+                f"input[type='number']",
+                f"input[type='date']",
+                f"input[type='search']",
+                f"input[type='tel']",
+                f"input[type='url']",
+                f"textarea",
+
+                # Attribute-based selectors
+                f"input[name]",  # Any input with name attribute
+                f"textarea[name]",  # Any textarea with name attribute
+                f"input[placeholder]",  # Any input with placeholder
+                f"textarea[placeholder]",  # Any textarea with placeholder
+                f"input[id]",  # Any input with id
+                f"textarea[id]",  # Any textarea with id
+
+                # Enhanced textarea selectors for better detection
+                f"textarea[data-testid]",  # Textareas with any test ID
+                f"textarea[placeholder]",  # Textareas with any placeholder
+                f"div[data-testid] textarea",  # Nested textareas in testid divs
+                f"div[class*='form'] textarea",  # Textareas in form-like containers
+
+                # ARIA and role-based
+                f"input[aria-label]",
+                f"textarea[aria-label]",
+                f"[role='textbox']",
+                f"[role='searchbox']",
+                f"[contenteditable='true']",
+
+                # Generic input (catch-all)
+                f"input:not([type='checkbox']):not([type='radio']):not([type='submit']):not([type='button']):visible",
+            ]
+
+            combined_selector = ''
+            combined_selector = combined_selector + ', '.join(type_selectors)
+
         # Get all potentially clickable elements
         elements = await page.query_selector_all(combined_selector)
-
         print(f"Found {len(elements)} potential clickable elements in DOM")
+
+        for element in elements:
+            print(f"Element: {element}")
 
         # Process each element
         for idx, element in enumerate(elements):
             try:
+                is_visible = False
                 # Enhanced visibility check with timeout
                 try:
                     # Check if element is visible with a timeout
@@ -88,20 +138,45 @@ async def find_and_click_most_relevant_element(
                     # Additional check for elements that might be technically visible but not interactive
                     if is_visible:
                         # Check if element is not hidden by CSS or has zero dimensions
+                        # Enhanced check that also validates parent visibility for nested elements
                         is_actually_visible = await element.evaluate("""
                             (el) => {
                                 const style = window.getComputedStyle(el);
                                 const rect = el.getBoundingClientRect();
                                 
-                                return style.display !== 'none' && 
+                                // Basic visibility check
+                                const isElementVisible = style.display !== 'none' && 
                                        style.visibility !== 'hidden' && 
                                        style.opacity !== '0' &&
                                        rect.width > 0 && 
                                        rect.height > 0 &&
                                        !el.hasAttribute('disabled');
+                                
+                                // Check if any parent element makes this invisible
+                                // This handles deeply nested structures like in modern chat UIs
+                                let isParentVisible = true;
+                                let parent = el.parentElement;
+                                
+                                // Check up to 5 levels of parent elements
+                                let depth = 0;
+                                while (parent && depth < 5) {
+                                    const parentStyle = window.getComputedStyle(parent);
+                                    if (parentStyle.display === 'none' || 
+                                        parentStyle.visibility === 'hidden' || 
+                                        parentStyle.opacity === '0') {
+                                        isParentVisible = false;
+                                        break;
+                                    }
+                                    parent = parent.parentElement;
+                                    depth++;
+                                }
+                                
+                                return isElementVisible && isParentVisible;
                             }
                         """)
                         is_visible = is_visible and is_actually_visible
+                    else:
+                        print(f"Not visible at index {idx}")
                 except Exception as e:
                     logger.warning(
                         f"Error checking visibility for element {idx}: {e}")
@@ -154,6 +229,14 @@ async def find_and_click_most_relevant_element(
 
                         # Only apply filtering if button_text is provided
                         should_add = text_match or attr_values_match or attr_keys_match
+
+                        if attributes.get(
+                                id
+                        ) == 'chat-query-sent-icon' and action_type == "click" and "send" in button_text_words:
+                            print(
+                                f"ADDING:: Action type: {action_type}, Element {idx}, element text: {text}, element attributes: {attributes} "
+                            )
+                            should_add = True
                     if should_add:
                         print(
                             f"PRESENT:: Element {idx}, element text: {text}, element class: {classes}. "
@@ -163,10 +246,9 @@ async def find_and_click_most_relevant_element(
                         ).strip() == 'create':
                             #skip the element
                             print(
-                                f"SKIPPING:: Element {idx}, element text: {text}, element attributes: {attributes} "
+                                f"SKIPPING:: Action type: {action_type}, Element {idx}, element text: {text}, element attributes: {attributes} "
                             )
                             continue
-
                         elements_to_evaluate.append({
                             "index": idx,
                             "text": text,
@@ -178,10 +260,15 @@ async def find_and_click_most_relevant_element(
                             element  # Store the actual element handle
                         })
                     else:
-                        # print(
-                        #     f"SKIPPED: Element {idx}, element text: {text}, element attributes: {attributes}"
-                        # )
+                        print(
+                            f"SKIPPED: Element {idx}, element text: {text}, element attributes: {attributes}"
+                        )
                         pass
+                else:
+                    print(
+                        f"NOT VISIBLE: Element {idx}, element text: {text}, element attributes: {attributes}"
+                    )
+                    pass
 
             except Exception as e:
                 logger.warning(f"Error processing element {idx}: {str(e)}")
@@ -190,7 +277,8 @@ async def find_and_click_most_relevant_element(
 
         for elem in elements_to_evaluate:
             if elem['text'] != '':
-              print(f"Element: {elem['index']}, {elem['text']}, {elem['tag']}")
+                print(
+                    f"Element: {elem['index']}, {elem['text']}, {elem['tag']}")
 
         # Prepare the data for the LLM
         element_data = []
@@ -415,4 +503,4 @@ You **must** return a single JSON object. The object must follow this exact stru
         import traceback
         logger.error(traceback.format_exc())
 
-        return NoneI
+        return None

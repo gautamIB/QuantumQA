@@ -1,6 +1,35 @@
 # Action Patterns Configuration
 # Maps natural language patterns to structured actions
 
+# COMBINED ACTIONS (HIGHEST PRIORITY - Must come first!)
+type:
+  # Combined click and type action (highest priority)
+  - regex: "click on (.+?)\\s+and type\\s+[\"']([^\"']+)[\"']"
+    description: "Click element and type text"
+    extractor:
+      target: 1
+      text: 2
+      combined_action: true
+      
+  # Regular type patterns (lower priority) 
+  - regex: "type\\s+[\"']?([^\"']+?)[\"']?\\s+(?:in|into)\\s+(.+?)(?:\\s+field|$)"
+    description: "Type text in field"
+    extractor:
+      text: 1
+      field: 2
+  
+  - regex: "enter\\s+[\"']?([^\"']+?)[\"']?\\s+(?:in|into)\\s+(.+)"
+    description: "Enter text in field"
+    extractor:
+      text: 1
+      field: 2
+  
+  - regex: "input\\s+[\"']?([^\"']+?)[\"']?\\s+(?:in|into)\\s+(.+)"
+    description: "Input text in field"
+    extractor:
+      text: 1
+      field: 2
+
 navigate:
   - regex: "navigate\\s+to\\s+(.+)"
     description: "Navigate to URL"
@@ -35,24 +64,6 @@ click:
       context:
         element_type: "dropdown"
 
-type:
-  - regex: "type\\s+[\"']?([^\"']+?)[\"']?\\s+(?:in|into)\\s+(.+?)(?:\\s+field|$)"
-    description: "Type text in field"
-    extractor:
-      text: 1
-      field: 2
-  
-  - regex: "enter\\s+[\"']?([^\"']+?)[\"']?\\s+(?:in|into)\\s+(.+)"
-    description: "Enter text in field"
-    extractor:
-      text: 1
-      field: 2
-  
-  - regex: "input\\s+[\"']?([^\"']+?)[\"']?\\s+(?:in|into)\\s+(.+)"
-    description: "Input text in field"
-    extractor:
-      text: 1
-      field: 2
 
 upload:
   - regex: "upload\\s+file\\s+from\\s+path:\\s*[\"']([^\"']+)[\"']"
