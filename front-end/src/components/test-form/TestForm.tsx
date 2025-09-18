@@ -27,7 +27,7 @@ export const TEST_OPTIONS_LABEL_MAP = {
 export interface TFormData {
   [FORM_LABELS.TEST_NAME]: string;
   [FORM_LABELS.TEST_TYPE]: string;
-  [FORM_LABELS.TEST_MO_URL]: string;
+  [FORM_LABELS.TEST_MO_URL]?: string;
   [FORM_LABELS.STEPS]: string;
   [FORM_LABELS.API_YAML]?: File | null;
 }
