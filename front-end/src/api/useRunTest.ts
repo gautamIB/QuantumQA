@@ -12,7 +12,7 @@ export const useRunTest = () => {
     const navigate = useNavigate();
 
     return useMutation({
-        mutationFn: ({formData, test}: {formData: RunTestFormData, test: TTest}) => {          
+        mutationFn: ({formData, test}: {formData: RunTestFormData, test: TTest}) => {         
           return fetch(API_ENDPOINTS.CREATE_RUN, {
             method: 'POST',
             body: JSON.stringify({
@@ -30,6 +30,9 @@ export const useRunTest = () => {
                     retry_count: 1,
                 },
             }),
+            headers: {
+              'Content-Type': 'application/json',
+            },
           });
         },
         onSuccess: async (_response, { formData }: {formData: RunTestFormData}) => {

@@ -29,15 +29,17 @@ export enum TEST_OPTIONS {
 };
 
 export enum RUN_STATUS {
-    IN_PROGRESS = 'PROCESSING',
+    IN_PROGRESS = 'RUNNING',
     COMPLETED = 'COMPLETED',
     FAILED = 'FAILED',
 };
 
 export enum STEP_STATUS {
-    SUCCESS = 'COMPLETED',
-    FAILED = 'FAILED',
-    IN_PROGRESS = 'PROCESSING',
+    SUCCESS = 'passed',
+    FAILED = 'failed',
+    IN_PROGRESS = 'running',
+    SKIPPED = 'skipped',
+    WAITING = 'waiting',
 };
 
 export enum FORM_LABELS {
@@ -74,20 +76,16 @@ export enum RUN_KEYS {
     TOTAL_COUNT = 'steps_total',
     SUCCESS_COUNT = 'steps_passed',
     FAILED_COUNT = 'steps_failed',
-}
-
-export enum REPORT_KEYS {
-    TOTAL_COUNT = 'steps_total',
-    SUCCESS_COUNT = 'steps_passed',
-    FAILED_COUNT = 'steps_failed',
+    SKIPPED_COUNT = 'steps_skipped',
     ERROR_SUMMARY = 'error_summary',
+    GIF_FILE_PATH = 'gif_file_path',
     STEPS = 'steps',
 }
 
 export enum STEP_KEYS {
-    NAME = 'name',
+    NAME = 'instruction',
     STATUS = 'status',
-    ERROR_MESSAGE = 'error_message',
+    ERROR_MESSAGE = 'failure_reason',
 }
 
 export interface TTest {
@@ -114,18 +112,17 @@ export interface TRun {
     [RUN_KEYS.SUCCESS_RATE]?: number;
     [RUN_KEYS.LOG_FILE_URL]?: string;
     [RUN_KEYS.REPORT_FILE_URL]?: string;
+    [RUN_KEYS.TOTAL_COUNT]: number;
+    [RUN_KEYS.SUCCESS_COUNT]: number;
+    [RUN_KEYS.FAILED_COUNT]: number;
+    [RUN_KEYS.SKIPPED_COUNT]: number;
+    [RUN_KEYS.STEPS]: TStep[];
+    [RUN_KEYS.ERROR_SUMMARY]: string;
+    [RUN_KEYS.GIF_FILE_PATH]: string;
 };
-
-export interface TReport {
-    [REPORT_KEYS.TOTAL_COUNT]: number;
-    [REPORT_KEYS.SUCCESS_COUNT]: number;
-    [REPORT_KEYS.FAILED_COUNT]: number;
-    [REPORT_KEYS.ERROR_SUMMARY]: string;
-    [REPORT_KEYS.STEPS]: TStep[];
-}
 
 export interface TStep {
     [STEP_KEYS.NAME]: string;
     [STEP_KEYS.STATUS]: string;
-    [STEP_KEYS.ERROR_MESSAGE]?: string;
+    [STEP_KEYS.ERROR_MESSAGE]?: string | null;
 }

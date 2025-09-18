@@ -54,6 +54,12 @@ export const Steps: React.FC<{ steps: TStep[] }> = ({ steps }) => {
                         {step[STEP_KEYS.STATUS] === STEP_STATUS.IN_PROGRESS && (
                             <StatusIcon icon="in-progress" size={16} color="#5A52FA" />
                         )}
+                        {step[STEP_KEYS.STATUS] === STEP_STATUS.SKIPPED && (
+                            <StatusIcon icon="exclude" size={16} color="#90929C" />
+                        )}
+                        {step[STEP_KEYS.STATUS] === STEP_STATUS.WAITING && (
+                            <StatusIcon icon="clock" size={16} color="#FFC34B" />
+                        )}
                     </FlexItem>
                 </FlexContainer>
             ))}

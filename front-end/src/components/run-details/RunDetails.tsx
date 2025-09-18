@@ -4,10 +4,8 @@ import { GenericError } from '@instabase.com/pollen/illustration';
 import styled from 'styled-components';
 import { TestProgress } from '../test-progress/TestProgress';
 import { useNavigate } from 'react-router-dom';
-import { REPORT_KEYS, ROUTES } from '../../constants';
-import { useReport } from '../../api/useReport';
+import { RUN_KEYS, ROUTES, TRun } from '../../constants';
 import { Steps } from '../steps/Steps';
-import { STEPS } from '../../data';
 
 const Container = styled(Box)`
   padding: 12px;
@@ -24,8 +22,7 @@ const StyledFlexContainer = styled(FlexContainer)`
   height: 100vh;
 `;
 
-export const RunDetails: React.FC<{ runName: string }> = ({ runName }) => {
-  const { data, isLoading, error } = useReport(runName);
+export const RunDetails: React.FC<{ run: TRun, error: any, isLoading: boolean }> = ({ run, error, isLoading }) => {
 
   const navigate = useNavigate();
   const onLeftArrowClick = () => {
@@ -59,11 +56,14 @@ export const RunDetails: React.FC<{ runName: string }> = ({ runName }) => {
           <H5>Run name</H5>
         </FlexContainer>
         <TestProgress
-          totalCount={data[REPORT_KEYS.TOTAL_COUNT]}
-          successCount={data[REPORT_KEYS.SUCCESS_COUNT]}
-          errorCount={data[REPORT_KEYS.FAILED_COUNT]}
+          totalCount={run[RUN_KEYS.TOTAL_COUNT]}
+          successCount={run[RUN_KEYS.SUCCESS_COUNT]}
+          errorCount={run[RUN_KEYS.FAILED_COUNT]}
+          skippedCount={run[RUN_KEYS.SKIPPED_COUNT]}
         />
-        <Steps steps={STEPS} />
+        {run[RUN_KEYS.STEPS] && (
+          <Steps steps={run[RUN_KEYS.STEPS]} />
+        )}
     </Container>
   );
 };

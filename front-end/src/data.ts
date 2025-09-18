@@ -94,63 +94,63 @@ export const TESTS: TTest[] =
     }
 ];
 
-export const RUNS: TRun[] = [
-    {
-        "run_name": "login_test_run_1",
-        "test_file": "Test/UI/sample_ui_test.txt",
-        "test_type": "UI",
-        "status": "FAILED",
-        "started_at": "2025-09-17T10:18:31.497585",
-        "completed_at": "2025-09-17T10:19:16.146288",
-        "duration_seconds": 44.648703,
-        "success_rate": 75.0,
-        "log_file_url": "/runs/login_test_run_1/logs",
-        "report_file_url": "/runs/login_test_run_1/report"
-    },
-    {
-        "run_name": "test_with_stored_creds",
-        "test_file": "Test/UI/sample_ui_test.txt",
-        "test_type": "UI",
-        "status": "FAILED",
-        "started_at": "2025-09-17T10:02:46.857744",
-        "completed_at": "2025-09-17T10:03:38.288011",
-        "duration_seconds": 51.430267,
-        "success_rate": 75.0,
-        "log_file_url": "/runs/test_with_stored_creds/logs",
-        "report_file_url": "/runs/test_with_stored_creds/report"
-    }
-];
+// export const RUNS: TRun[] = [
+//     {
+//         "run_name": "login_test_run_1",
+//         "test_file": "Test/UI/sample_ui_test.txt",
+//         "test_type": "UI",
+//         "status": "FAILED",
+//         "started_at": "2025-09-17T10:18:31.497585",
+//         "completed_at": "2025-09-17T10:19:16.146288",
+//         "duration_seconds": 44.648703,
+//         "success_rate": 75.0,
+//         "log_file_url": "/runs/login_test_run_1/logs",
+//         "report_file_url": "/runs/login_test_run_1/report"
+//     },
+//     {
+//         "run_name": "test_with_stored_creds",
+//         "test_file": "Test/UI/sample_ui_test.txt",
+//         "test_type": "UI",
+//         "status": "FAILED",
+//         "started_at": "2025-09-17T10:02:46.857744",
+//         "completed_at": "2025-09-17T10:03:38.288011",
+//         "duration_seconds": 51.430267,
+//         "success_rate": 75.0,
+//         "log_file_url": "/runs/test_with_stored_creds/logs",
+//         "report_file_url": "/runs/test_with_stored_creds/report"
+//     }
+// ];
 
-export const RUN: TRun = {
-    "run_name": "test_with_stored_creds",
-    "test_file": "Test/UI/sample_ui_test.txt",
-    "test_type": "UI",
-    "status": "FAILED",
-    "started_at": "2025-09-17T10:02:46.857744",
-    "completed_at": "2025-09-17T10:03:38.288011",
-    "duration_seconds": 51.430267,
-    "success_rate": 75.0,
-    "log_file_url": "/runs/test_with_stored_creds/logs",
-    "report_file_url": "/runs/test_with_stored_creds/report"
-}
+// export const RUN: TRun = {
+//     "run_name": "test_with_stored_creds",
+//     "test_file": "Test/UI/sample_ui_test.txt",
+//     "test_type": "UI",
+//     "status": "FAILED",
+//     "started_at": "2025-09-17T10:02:46.857744",
+//     "completed_at": "2025-09-17T10:03:38.288011",
+//     "duration_seconds": 51.430267,
+//     "success_rate": 75.0,
+//     "log_file_url": "/runs/test_with_stored_creds/logs",
+//     "report_file_url": "/runs/test_with_stored_creds/report"
+// }
 
-export const STEPS: TStep[] = [{
-    name: "Clicked on the create button",
-    status: "COMPLETED",
-  }, {
-    name: "Clicked on something",
-    status: "COMPLETED",
-  }, {
-    name: "Clicked on save",
-    status: "PROCESSING",
-  }, {
-    name: "Some process which is described by the user which is long and time consuming",
-    status: "FAILED",
-    error_message: "Some thing happens, while clicking on the button it, kept loading for long time.",
-}, {
-    name: "Clicked on save",
-    status: "PROCESSING",
-  }];
+// export const STEPS: TStep[] = [{
+//     name: "Clicked on the create button",
+//     status: "COMPLETED",
+//   }, {
+//     name: "Clicked on something",
+//     status: "COMPLETED",
+//   }, {
+//     name: "Clicked on save",
+//     status: "PROCESSING",
+//   }, {
+//     name: "Some process which is described by the user which is long and time consuming",
+//     status: "FAILED",
+//     error_message: "Some thing happens, while clicking on the button it, kept loading for long time.",
+// }, {
+//     name: "Clicked on save",
+//     status: "PROCESSING",
+//   }];
 
 // export const RUNS: TRun[] = [
 //     { id: '1', name: 'Run name 1', testName: 'Test name 1', testType: TEST_OPTIONS.TEST_MO, status: RUN_STATUS.COMPLETED, total: 25, success: 23, failed: 2 },
