@@ -12,6 +12,7 @@ from playwright.async_api import async_playwright, Page, Browser, BrowserContext
 from ..parsers.instruction_parser import InstructionParser
 from ..finders.element_finder import ElementFinder
 from ..executors.action_executor import ActionExecutor
+from ..utils.gif_creator import GifCreator
 
 
 class ChromeEngine:
@@ -56,13 +57,17 @@ class ChromeEngine:
         self.browser = None
         self.context = None
         self.page = None
-
+        
+        # Run tracking
+        self.run_name = None
+        
         # Track if we connected to existing browser
         self._connected_to_existing = False
-
-    async def initialize(self,
-                         headless: bool = False,
-                         viewport: Dict[str, int] = None) -> None:
+        
+        # 🎬 GIF Creation: Initialize screenshot accumulator
+        self.gif_creator = GifCreator()
+    
+    async def initialize(self, headless: bool = False, viewport: Dict[str, int] = None) -> None:
         """Initialize browser with generic settings and browser reuse capability."""
         print("🚀 Initializing Generic Chrome Engine...")
 
@@ -192,6 +197,9 @@ class ChromeEngine:
             print(f"\n📍 Step {i}/{total_steps}: {instruction}")
 
             try:
+                # 🎬 Take step screenshot for GIF
+                await self._take_step_screenshot(i)
+                
                 # Parse instruction generically
                 action_plan = await self.instruction_parser.parse(instruction)
                 print(
@@ -338,9 +346,17 @@ class ChromeEngine:
                 verification_options["step_number"] = step_number
 
                 success = await self.action_executor.verify(
-                    self.page, action_plan["verification_type"],
-                    action_plan.get("expected_value"), verification_options)
-
+                    self.page,
+                    action_plan["verification_type"],
+                    action_plan.get("expected_value"),
+                    verification_options
+                )
+            
+            elif action == "press_enter":
+                # Press Enter key with optional navigation waiting
+                press_options = action_plan.get("press_options", {})
+                success = await self.action_executor.press_enter(self.page, press_options)
+            
             elif action == "wait":
                 success = await self.action_executor.wait(
                     self.page, action_plan.get("wait_type", "time"),
@@ -513,7 +529,24 @@ class ChromeEngine:
         }
 
         return report
-
+    
+    async def _take_step_screenshot(self, step_number: int) -> str:
+        """Take screenshot at the beginning of each step for GIF creation."""
+        Path("test_results/steps").mkdir(parents=True, exist_ok=True)
+        screenshot_path = f"test_results/steps/step_{step_number}_start.png"
+        
+        try:
+            await self.page.screenshot(path=screenshot_path)
+            print(f"    📸 Step {step_number} screenshot: {screenshot_path}")
+            
+            # 🎬 Add to GIF queue (step screenshot)
+            self.gif_creator.add_step_screenshot(screenshot_path, step_number, "step_start")
+            
+            return screenshot_path
+        except Exception as e:
+            print(f"    ⚠️ Could not take step screenshot: {e}")
+            return ""
+    
     async def _save_debug_screenshot(self, step_number: int) -> str:
         """Save debug screenshot."""
         Path("test_results").mkdir(exist_ok=True)
@@ -522,13 +555,17 @@ class ChromeEngine:
         try:
             await self.page.screenshot(path=screenshot_path)
             print(f"    📸 Debug screenshot: {screenshot_path}")
+            
+            # 🎬 Skip adding debug screenshots to GIF to avoid overcrowding
+            # Debug screenshots are not usually interesting for GIFs
+            
             return screenshot_path
         except Exception as e:
             print(f"    ⚠️ Could not save debug screenshot: {e}")
             return ""
 
     async def _save_final_screenshot(self, instruction_file: str) -> str:
-        """Save final test screenshot."""
+        """Save final test screenshot and create GIF from all accumulated screenshots."""
         Path("test_results").mkdir(exist_ok=True)
         clean_filename = instruction_file.replace('/', '_').replace('.txt', '')
         screenshot_path = f"test_results/final_{clean_filename}.png"
@@ -536,6 +573,24 @@ class ChromeEngine:
         try:
             await self.page.screenshot(path=screenshot_path, full_page=True)
             print(f"📸 Final screenshot: {screenshot_path}")
+            
+            # 🎬 Add final screenshot to GIF queue
+            self.gif_creator.add_screenshot(screenshot_path)
+            
+            # 🎬 Create GIF from all accumulated screenshots
+            if self.gif_creator.get_screenshot_count() > 1:
+                # Use run_name as custom filename if provided, otherwise use title-based naming
+                custom_filename = f"{self.run_name}.gif" if self.run_name else None
+                gif_path = self.gif_creator.create_gif(
+                    "reports", 
+                    title=f"chrome_test_{clean_filename}",
+                    custom_filename=custom_filename
+                )
+                if gif_path:
+                    print(f"🎬 Test execution GIF created: {gif_path}")
+            else:
+                print("    ℹ️ Only one screenshot available - skipping GIF creation")
+            
             return screenshot_path
         except Exception as e:
             print(f"⚠️ Could not save final screenshot: {e}")
@@ -554,7 +609,11 @@ class ChromeEngine:
             ]
 
         return instructions
-
+    
+    def set_run_name(self, run_name: str):
+        """Set the run name for GIF file naming."""
+        self.run_name = run_name
+    
     async def cleanup(self):
         """Clean up browser resources."""
         print("\n🛑 Cleaning up Generic Chrome Engine...")
@@ -590,3 +649,15 @@ class ChromeEngine:
 
         except Exception as e:
             print(f"⚠️ Cleanup warning: {e}")
+    
+    def configure_gif_settings(self, duration: int = None, loop: int = None, optimize: bool = None) -> None:
+        """
+        Configure GIF creation settings.
+        
+        Args:
+            duration: Milliseconds per frame (default: 750ms for 2x speed)
+            loop: Number of loops (0 = infinite)
+            optimize: Whether to optimize GIF size
+        """
+        self.gif_creator.set_gif_settings(duration=duration, loop=loop, optimize=optimize)
+        print(f"🎬 GIF settings updated for Chrome Engine")

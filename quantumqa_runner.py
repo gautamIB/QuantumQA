@@ -43,7 +43,7 @@ def detect_test_type(instruction_file: str) -> str:
 
 async def run_ui_test(instruction_file: str, headless: bool = False,
                      credentials_file: Optional[str] = None, config_dir: Optional[str] = None,
-                     connect_to_existing: bool = True, debug_port: int = 9222, args=None):
+                     connect_to_existing: bool = True, debug_port: int = 9222, args=None, run_name: str = None):
     """Run UI test using Vision-Enhanced Chrome engine."""
     print("🌐 Running Vision-Enhanced UI Test")
     print("=" * 50)
@@ -79,6 +79,9 @@ async def run_ui_test(instruction_file: str, headless: bool = False,
     
     try:
         await engine.initialize(headless=headless)
+        # Set run_name for GIF naming if available
+        if run_name and hasattr(engine, 'set_run_name'):
+            engine.set_run_name(run_name)
         report = await engine.execute_test(instruction_file)
 
         print(f"\n📊 UI Test Results:")
@@ -177,6 +180,8 @@ Examples:
                        help='Path to credentials file (default: quantumqa/config/credentials.yaml)')
     parser.add_argument('--config',
                        help='Path to config directory (default: quantumqa/config/)')
+    parser.add_argument('--run-name', 
+                       help='Optional run name for GIF file naming')
     parser.add_argument('--connect-existing', action='store_true', default=True,
                        help='Connect to existing Chrome browser if available (default: True)')
     parser.add_argument('--new-browser', action='store_true',
@@ -237,7 +242,8 @@ Examples:
             args.config,
             connect_to_existing,
             args.debug_port,
-            args
+            args,
+            getattr(args, 'run_name', None)
         )
 
     # Exit with appropriate code

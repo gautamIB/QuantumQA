@@ -15,7 +15,7 @@ import re
 import signal
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Tuple, Union
 from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks, Form, Query, Depends
 from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -166,7 +166,7 @@ class TestConfigInfo(BaseModel):
     modified_at: str
     size_bytes: int
     status: str  # "valid", "invalid", "warning"
-
+    instruction: Optional[str] = None  # Test instructions/content
 
 class TestConfigDetail(BaseModel):
     test_name: str
@@ -182,10 +182,10 @@ class TestConfigDetail(BaseModel):
 class StepResult(BaseModel):
     step_number: int
     instruction: str
-    status: str
+    status: str  # "passed", "failed", "skipped"
     duration_seconds: float
     screenshot: Optional[str] = None
-
+    failure_reason: Optional[str] = None  # Reason for failure if status is "failed"
 
 class RunSummary(BaseModel):
     status: str
@@ -224,7 +224,7 @@ class RunDetail(BaseModel):
     test_file: str
     test_type: str
     environment: str
-    status: str
+    status: str  # "RUNNING", "COMPLETED", "FAILED", "CANCELLED"
     started_at: str
     completed_at: Optional[str] = None
     duration_seconds: Optional[float] = None
@@ -232,10 +232,13 @@ class RunDetail(BaseModel):
     steps_total: int
     steps_passed: int
     steps_failed: int
+    steps_skipped: Optional[int] = 0  # Number of skipped steps (comments)
+    steps_executed: Optional[int] = None  # For RUNNING status
+    steps: List[StepResult] = []  # Individual step details
     error_summary: Optional[str] = None
     log_file_url: str
     report_file_url: str
-
+    gif_file_path: Optional[str] = None  # Path to GIF file if available
 
 class RunReport(BaseModel):
     run_name: str
@@ -293,6 +296,590 @@ class UpdateCredentialRequest(BaseModel):
 # Global variable to track running tests
 running_tests: Dict[str, Dict[str, Any]] = {}
 
+def cleanup_orphaned_processes():
+    """Clean up any orphaned test processes on startup."""
+    try:
+        # Look for any existing log files that might indicate running processes
+        logs_dir = Path("logs")
+        if logs_dir.exists():
+            for log_file in logs_dir.glob("*_creds.yaml"):
+                # These are temporary credential files that should be cleaned up
+                try:
+                    log_file.unlink()
+                    logger.info(f"Cleaned up orphaned credential file: {log_file}")
+                except Exception as e:
+                    logger.warning(f"Could not clean up {log_file}: {e}")
+        
+        logger.info("Orphaned process cleanup completed")
+    except Exception as e:
+        logger.warning(f"Error during orphaned process cleanup: {e}")
+
+# Clean up on startup
+cleanup_orphaned_processes()
+
+# Helper functions for parsing log files and extracting step information
+def parse_log_file_for_steps(log_file_path: Path) -> Tuple[List[StepResult], int, int, int]:
+    """
+    Parse log file to extract step information.
+    Returns: (steps_list, total_steps, passed_steps, failed_steps)
+    """
+    steps = []
+    total_steps = 0
+    passed_steps = 0
+    failed_steps = 0
+    
+    if not log_file_path.exists():
+        return steps, total_steps, passed_steps, failed_steps
+    
+    try:
+        with open(log_file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Extract step information using regex patterns
+        step_patterns = [
+            r'📋 Step (\d+): (.+?)(?:\n|$)',  # Step start pattern
+            r'✅ Step (\d+) completed',  # Step completion pattern
+            r'❌ Step (\d+) failed:? ?(.+?)(?:\n|$)',  # Step failure pattern
+            r'⚠️ Step (\d+).+?(.+?)(?:\n|$)',  # Step warning pattern
+        ]
+        
+        lines = content.split('\n')
+        current_step = None
+        
+        for line in lines:
+            # Try to match step start
+            import re
+            step_start_match = re.search(r'📋 Step (\d+): (.+)', line)
+            if step_start_match:
+                step_num = int(step_start_match.group(1))
+                instruction = step_start_match.group(2).strip()
+                current_step = {
+                    'step_number': step_num,
+                    'instruction': instruction,
+                    'status': 'running',
+                    'duration_seconds': 0.0,
+                    'failure_reason': None
+                }
+                total_steps = max(total_steps, step_num)
+            
+            # Check for step completion
+            elif current_step and re.search(r'✅ Step \d+ completed', line):
+                current_step['status'] = 'passed'
+                passed_steps += 1
+                steps.append(StepResult(**current_step))
+                current_step = None
+            
+            # Check for step failure
+            elif current_step and ('❌' in line or '⚠️' in line):
+                failure_match = re.search(r'(?:❌|⚠️).+?Step \d+.+?(.+)', line)
+                current_step['status'] = 'failed'
+                current_step['failure_reason'] = failure_match.group(1).strip() if failure_match else line.strip()
+                failed_steps += 1
+                steps.append(StepResult(**current_step))
+                current_step = None
+        
+        # Handle any remaining current_step
+        if current_step:
+            current_step['status'] = 'failed'
+            current_step['failure_reason'] = 'Step was interrupted or incomplete'
+            failed_steps += 1
+            steps.append(StepResult(**current_step))
+        
+        # If no steps were parsed from structured format, try simpler parsing
+        if not steps and total_steps == 0:
+            # Try to find "Loaded X instructions" pattern
+            loaded_match = re.search(r'📋 Loaded (\d+) instructions', content)
+            if loaded_match:
+                total_steps = int(loaded_match.group(1))
+            
+            # Estimate based on success rate if available
+            success_rate_match = re.search(r'Success Rate: ([\d.]+)%', content)
+            if success_rate_match and total_steps > 0:
+                success_rate = float(success_rate_match.group(1))
+                passed_steps = int((success_rate / 100.0) * total_steps)
+                failed_steps = total_steps - passed_steps
+    
+    except Exception as e:
+        logger.warning(f"Error parsing log file {log_file_path}: {e}")
+    
+    return steps, total_steps, passed_steps, failed_steps
+
+def find_gif_file(run_name: str) -> Optional[str]:
+    """Find GIF file for a test run in the reports directory."""
+    reports_dir = Path("reports")
+    if not reports_dir.exists():
+        return None
+    
+    # Look for GIF files that contain the run name
+    for gif_file in reports_dir.glob("*.gif"):
+        if run_name in gif_file.name:
+            return str(gif_file)
+    
+    return None
+
+def create_initial_report(run_name: str, test_file_path: str, test_type: str, environment: str, start_time: str) -> Dict[str, Any]:
+    """Create initial report file with all steps in 'waiting' status."""
+    try:
+        # Read test file to get all steps
+        test_file = Path(test_file_path)
+        if not test_file.exists():
+            logger.warning(f"Test file not found: {test_file_path}")
+            return None
+        
+        steps = []
+        step_number = 1
+        
+        with open(test_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line:  # Include all non-empty lines
+                    # Determine if this is a comment/section marker
+                    is_comment = (line.startswith('#') or line.startswith('//') or 
+                                line.startswith('===') or line.endswith('==='))
+                    
+                    steps.append({
+                        "step_number": step_number,
+                        "instruction": line,
+                        "status": "skipped" if is_comment else "waiting",
+                        "duration_seconds": 0.0,
+                        "failure_reason": None,
+                        "screenshot": None,
+                        "started_at": None,
+                        "completed_at": None,
+                        "is_comment": is_comment
+                    })
+                    step_number += 1
+        
+        # Calculate initial statistics
+        skipped_count = sum(1 for s in steps if s["status"] == "skipped")
+        waiting_count = sum(1 for s in steps if s["status"] == "waiting")
+        
+        # Create initial report structure
+        initial_report = {
+            "run_name": run_name,
+            "test_file": test_file_path,
+            "test_type": test_type,
+            "environment": environment,
+            "status": "RUNNING",
+            "start_time": start_time,
+            "end_time": None,
+            "duration_seconds": None,
+            "return_code": None,
+            "success_rate": None,
+            "steps_total": len(steps),
+            "steps_passed": 0,
+            "steps_failed": 0,
+            "steps_skipped": skipped_count,
+            "steps_executed": 0,
+            "current_step": 1,
+            "steps": steps,
+            "log_file": f"logs/{run_name}.txt",
+            "command": None,
+            "created_at": datetime.now().isoformat(),
+            "last_updated": datetime.now().isoformat()
+        }
+        
+        # Save initial report
+        report_file = Path(f"reports/{run_name}.txt")
+        with open(report_file, 'w') as f:
+            json.dump(initial_report, f, indent=2)
+        
+        logger.info(f"Created initial report for {run_name} with {len(steps)} steps")
+        return initial_report
+        
+    except Exception as e:
+        logger.error(f"Error creating initial report for {run_name}: {e}")
+        return None
+
+def update_step_status(run_name: str, step_number: int, status: str, failure_reason: str = None, duration: float = 0.0) -> bool:
+    """Update individual step status in the report file."""
+    try:
+        report_file = Path(f"reports/{run_name}.txt")
+        if not report_file.exists():
+            logger.warning(f"Report file not found for run: {run_name}")
+            return False
+        
+        # Read current report
+        with open(report_file, 'r') as f:
+            report = json.load(f)
+        
+        # Find and update the step
+        step_found = False
+        for step in report.get("steps", []):
+            if step["step_number"] == step_number:
+                step["status"] = status
+                step["duration_seconds"] = duration
+                step["completed_at"] = datetime.now().isoformat()
+                
+                if status == "running":
+                    step["started_at"] = datetime.now().isoformat()
+                elif status == "failed" and failure_reason:
+                    step["failure_reason"] = failure_reason
+                
+                step_found = True
+                break
+        
+        if not step_found:
+            logger.warning(f"Step {step_number} not found in report for {run_name}")
+            return False
+        
+        # Update overall statistics
+        passed_count = sum(1 for s in report["steps"] if s["status"] == "passed")
+        failed_count = sum(1 for s in report["steps"] if s["status"] == "failed")
+        skipped_count = sum(1 for s in report["steps"] if s["status"] == "skipped")
+        # Executed = steps that have completed (passed or failed)
+        executed_count = sum(1 for s in report["steps"] if s["status"] in ["passed", "failed"])
+        
+        report["steps_passed"] = passed_count
+        report["steps_failed"] = failed_count
+        report["steps_skipped"] = skipped_count
+        report["steps_executed"] = executed_count
+        report["last_updated"] = datetime.now().isoformat()
+        
+        # Update current step if this step is running
+        if status == "running":
+            report["current_step"] = step_number
+        
+        # Save updated report
+        with open(report_file, 'w') as f:
+            json.dump(report, f, indent=2)
+        
+        logger.debug(f"Updated step {step_number} status to {status} for run {run_name}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error updating step status for {run_name}: {e}")
+        return False
+
+def find_report_step_by_number(execution_step_num: int, report_steps: List[Dict]) -> Optional[int]:
+    """Find report step by exact step number - simple and reliable."""
+    try:
+        # Direct step number mapping - engine step N should map to report step N
+        for step in report_steps:
+            if step['step_number'] == execution_step_num:
+                logger.debug(f"✅ Direct match: execution step {execution_step_num} → report step {step['step_number']}")
+                return step['step_number']
+        
+        logger.warning(f"❌ No direct match found for execution step {execution_step_num}")
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error in step number matching: {e}")
+        return None
+
+async def parse_and_update_steps_from_log(run_name: str, log_content: str, last_step_detected: int) -> int:
+    """Parse log content and update step statuses with execution-to-report mapping."""
+    import re
+    
+    try:
+        # Get current report to access step data
+        report_file = Path(f"reports/{run_name}.txt")
+        if not report_file.exists():
+            logger.warning(f"Report file not found for step mapping: {run_name}")
+            return last_step_detected
+        
+        with open(report_file, 'r') as f:
+            report_data = json.load(f)
+        
+        report_steps = report_data.get("steps", [])
+        if not report_steps:
+            logger.warning(f"No steps found in report for mapping: {run_name}")
+            return last_step_detected
+        
+        # Track execution step to report step mapping
+        execution_to_report = {}
+        lines = log_content.split('\n')
+        current_running_report_step = None
+        latest_execution_step = last_step_detected
+        
+        # PHASE 1: Build complete mapping by processing all start messages first
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Only look for step start patterns to build mapping
+            step_start_match = re.search(r'📍 Step (\d+)/\d+: (.+)', line)
+            if step_start_match:
+                execution_step = int(step_start_match.group(1))
+                instruction = step_start_match.group(2).strip()
+                
+                # Find matching report step using direct step number mapping
+                report_step_num = find_report_step_by_number(execution_step, report_steps)
+                
+                if report_step_num:
+                    execution_to_report[execution_step] = report_step_num
+                    logger.debug(f"Pre-mapped execution step {execution_step} → report step {report_step_num}")
+        
+        # PHASE 2: Process step status updates with complete mapping
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # 1. Look for step start patterns
+            step_start_match = re.search(r'📍 Step (\d+)/\d+: (.+)', line)
+            if step_start_match:
+                execution_step = int(step_start_match.group(1))
+                instruction = step_start_match.group(2).strip()
+                
+                # Complete previous step if still running
+                if current_running_report_step and execution_step > latest_execution_step:
+                    logger.debug(f"Auto-completing previous step {current_running_report_step} (missing completion)")
+                    update_step_status(run_name, current_running_report_step, "passed", "Auto-completed", 0.0)
+                    current_running_report_step = None
+                
+                # Use pre-built mapping
+                report_step_num = execution_to_report.get(execution_step)
+                if report_step_num:
+                    logger.debug(f"🔄 Processing execution step {execution_step} → report step {report_step_num}")
+                    
+                    # Check if this is a comment step - if so, don't update it
+                    report_step = next((s for s in report_steps if s['step_number'] == report_step_num), None)
+                    if report_step and report_step.get('is_comment', False):
+                        logger.debug(f"🚫 SKIPPING update for comment step {report_step_num} - keeping as 'skipped'")
+                        # Don't set current_running_report_step for comment steps
+                        latest_execution_step = execution_step
+                    else:
+                        # Set this step as running (only for non-comment steps)
+                        success = update_step_status(run_name, report_step_num, "running")
+                        if success:
+                            current_running_report_step = report_step_num
+                            latest_execution_step = execution_step
+                            logger.debug(f"✅ Step {report_step_num} set to RUNNING")
+                        else:
+                            logger.error(f"❌ Failed to set step {report_step_num} to running")
+                else:
+                    logger.warning(f"❌ No mapping found for execution step {execution_step}")
+            
+            # 2. Look for step completion patterns
+            step_complete_match = re.search(r'✅ Step (\d+) completed successfully', line)
+            if step_complete_match:
+                execution_step = int(step_complete_match.group(1))
+                
+                # Extract duration
+                duration_match = re.search(r'\(([0-9.]+)s total\)', line)
+                duration = float(duration_match.group(1)) if duration_match else 0.0
+                
+                # Find corresponding report step
+                report_step_num = execution_to_report.get(execution_step)
+                if report_step_num:
+                    # Check if this is a comment step - if so, don't update it
+                    report_step = next((s for s in report_steps if s['step_number'] == report_step_num), None)
+                    if report_step and report_step.get('is_comment', False):
+                        logger.info(f"🚫 SKIPPING completion for comment step {report_step_num} - keeping as 'skipped'")
+                    else:
+                        logger.debug(f"Completing execution step {execution_step} → report step {report_step_num} (passed)")
+                        update_step_status(run_name, report_step_num, "passed", None, duration)
+                        if current_running_report_step == report_step_num:
+                            current_running_report_step = None
+                else:
+                    logger.warning(f"Completion for unmapped execution step {execution_step}")
+            
+            # 3. Look for step failure patterns
+            step_fail_match = re.search(r'❌ Step (\d+) failed', line)
+            if step_fail_match:
+                execution_step = int(step_fail_match.group(1))
+                
+                # Extract duration
+                duration_match = re.search(r'\(([0-9.]+)s total\)', line)
+                duration = float(duration_match.group(1)) if duration_match else 0.0
+                
+                # Find corresponding report step
+                report_step_num = execution_to_report.get(execution_step)
+                if report_step_num:
+                    # Check if this is a comment step - if so, don't update it
+                    report_step = next((s for s in report_steps if s['step_number'] == report_step_num), None)
+                    if report_step and report_step.get('is_comment', False):
+                        logger.info(f"🚫 SKIPPING failure for comment step {report_step_num} - keeping as 'skipped'")
+                    else:
+                        logger.debug(f"Failing execution step {execution_step} → report step {report_step_num} (failed)")
+                        update_step_status(run_name, report_step_num, "failed", line.strip(), duration)
+                        if current_running_report_step == report_step_num:
+                            current_running_report_step = None
+                else:
+                    logger.warning(f"Failure for unmapped execution step {execution_step}")
+            
+            # 4. Look for general error indicators that might affect current step
+            if (current_running_report_step and 
+                any(indicator in line.lower() for indicator in ['error:', 'failed:', 'exception:', 'timeout:'])):
+                logger.debug(f"Error detected, failing current running step {current_running_report_step}: {line}")
+                update_step_status(run_name, current_running_report_step, "failed", line.strip())
+                current_running_report_step = None
+        
+        return latest_execution_step
+        
+    except Exception as e:
+        logger.error(f"Error in parse_and_update_steps_from_log for {run_name}: {e}")
+        return last_step_detected
+
+async def monitor_running_test(run_name: str):
+    """Monitor a running test process and update status when complete."""
+    if run_name not in running_tests:
+        logger.warning(f"Test {run_name} not found in running tests")
+        return
+    
+    test_info = running_tests[run_name]
+    process = test_info["process"]
+    
+    logger.info(f"Starting monitoring for test: {run_name} (PID: {test_info['pid']})")
+    
+    # Track log file size to detect new content
+    log_file_path = Path(test_info["log_file"])
+    last_log_size = 0
+    last_step_detected = 0
+    
+    try:
+        # Poll process status and log file every second
+        while True:
+            # Check if process has completed
+            return_code = process.poll()
+            
+            # Monitor log file for real-time step updates
+            if log_file_path.exists():
+                current_log_size = log_file_path.stat().st_size
+                if current_log_size > last_log_size:
+                    # New content in log file - try to parse step updates
+                    try:
+                        with open(log_file_path, 'r') as f:
+                            f.seek(last_log_size)  # Start from where we left off
+                            new_content = f.read()
+                        
+                        # Parse new log content for step information
+                        last_step_detected = await parse_and_update_steps_from_log(run_name, new_content, last_step_detected)
+                        last_log_size = current_log_size
+                        
+                    except Exception as e:
+                        logger.debug(f"Error parsing log updates for {run_name}: {e}")
+            
+            if return_code is not None:
+                # Process finished - update status and create report
+                end_time = datetime.now()
+                start_time = datetime.fromisoformat(test_info["start_time"])
+                duration = (end_time - start_time).total_seconds()
+                
+                # Determine final status
+                status = "COMPLETED" if return_code == 0 else "FAILED"
+                
+                # Try to parse success rate from log file
+                success_rate = None
+                try:
+                    if Path(test_info["log_file"]).exists():
+                        with open(test_info["log_file"], 'r') as f:
+                            log_content = f.read()
+                        
+                        # Look for success rate in log
+                        import re
+                        success_match = re.search(r'Success Rate: ([\d.]+)%', log_content)
+                        if success_match:
+                            success_rate = float(success_match.group(1))
+                except Exception as e:
+                    logger.warning(f"Could not parse success rate for {run_name}: {e}")
+                
+                # Update final report preserving step data
+                try:
+                    # Read existing structured report to preserve step data
+                    report_file = Path(test_info["report_file"])
+                    if report_file.exists():
+                        with open(report_file, 'r') as f:
+                            existing_report = json.load(f)
+                    else:
+                        existing_report = {}
+                    
+                    # Update final report with completion data while preserving steps
+                    existing_report.update({
+                        "status": status,
+                        "end_time": end_time.isoformat(),
+                        "duration_seconds": duration,
+                        "return_code": return_code,
+                        "success_rate": success_rate,
+                        "command": test_info["command"],
+                        "last_updated": datetime.now().isoformat()
+                    })
+                    
+                    # Complete any steps still in running state
+                    steps = existing_report.get("steps", [])
+                    if steps:
+                        running_steps = [s for s in steps if s.get("status") == "running"]
+                        if running_steps:
+                            logger.info(f"Auto-completing {len(running_steps)} running steps for final report")
+                            for step in running_steps:
+                                if not step.get("is_comment", False):  # Don't update comment steps
+                                    step["status"] = "passed"
+                                    step["completed_at"] = end_time.isoformat()
+                                    logger.info(f"Auto-completed step {step['step_number']}: {step['instruction'][:50]}...")
+                        
+                        # Calculate final step statistics from the steps array
+                        passed_count = sum(1 for s in steps if s.get("status") == "passed")
+                        failed_count = sum(1 for s in steps if s.get("status") == "failed")
+                        skipped_count = sum(1 for s in steps if s.get("status") == "skipped")
+                        # For final report, executed = completed steps only
+                        executed_count = sum(1 for s in steps if s.get("status") in ["passed", "failed"])
+                        
+                        existing_report.update({
+                            "steps_passed": passed_count,
+                            "steps_failed": failed_count,
+                            "steps_skipped": skipped_count,
+                            "steps_executed": executed_count
+                        })
+                    
+                    # Save updated report preserving all step data
+                    with open(test_info["report_file"], 'w') as f:
+                        json.dump(existing_report, f, indent=2)
+                    
+                    logger.info(f"Final report updated for test: {run_name} - preserving {len(steps)} steps")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to update final report for {run_name}: {e}")
+                    
+                    # Fallback: create basic report
+                    fallback_report = {
+                        "run_name": run_name,
+                        "test_file": test_info["test_file"],
+                        "test_type": test_info["test_type"],
+                        "environment": test_info["environment"],
+                        "status": status,
+                        "start_time": test_info["start_time"],
+                        "end_time": end_time.isoformat(),
+                        "duration_seconds": duration,
+                        "return_code": return_code,
+                        "success_rate": success_rate,
+                        "log_file": test_info["log_file"],
+                        "command": test_info["command"]
+                    }
+                    
+                    with open(test_info["report_file"], 'w') as f:
+                        json.dump(fallback_report, f, indent=2)
+                
+                # Append completion info to log file
+                try:
+                    with open(test_info["log_file"], 'a') as log_f:
+                        log_f.write(f"\n" + "=" * 50 + "\n")
+                        log_f.write(f"Completed at: {end_time.isoformat()}\n")
+                        log_f.write(f"Return code: {return_code}\n")
+                        log_f.write(f"Duration: {duration:.2f} seconds\n")
+                        log_f.write(f"Status: {status}\n")
+                        if success_rate is not None:
+                            log_f.write(f"Success Rate: {success_rate}%\n")
+                except Exception as e:
+                    logger.warning(f"Failed to update log file for {run_name}: {e}")
+                
+                logger.info(f"Test {run_name} completed with status: {status} (return code: {return_code})")
+                break
+            
+            # Wait 1 second before next check (non-blocking)
+            await asyncio.sleep(1)
+            
+    except Exception as e:
+        logger.error(f"Error monitoring test {run_name}: {e}")
+        # Mark as failed if monitoring fails
+        status = "FAILED"
+    
+    finally:
+        # Remove from running tests when done
+        if run_name in running_tests:
+            logger.info(f"Removing {run_name} from running tests")
+            del running_tests[run_name]
 
 # Test validation functions
 def validate_ui_test(content: str) -> ValidationResult:
@@ -761,8 +1348,8 @@ async def get_test_configurations(
 
                         # Get file stats
                         stat = file_path.stat()
-
-                        # Validate test to get status
+                        
+                        # Validate test to get status and read content
                         try:
                             with open(file_path, 'r', encoding='utf-8') as f:
                                 content = f.read()
@@ -771,18 +1358,19 @@ async def get_test_configurations(
                             status = validation.status
                         except Exception:
                             status = "invalid"
-
-                        test_configs.append(
-                            TestConfigInfo(test_name=test_name,
-                                           test_type=scan_type,
-                                           file_path=str(file_path),
-                                           created_at=datetime.fromtimestamp(
-                                               stat.st_ctime).isoformat(),
-                                           modified_at=datetime.fromtimestamp(
-                                               stat.st_mtime).isoformat(),
-                                           size_bytes=stat.st_size,
-                                           status=status))
-
+                            content = None
+                        
+                        test_configs.append(TestConfigInfo(
+                            test_name=test_name,
+                            test_type=scan_type,
+                            file_path=str(file_path),
+                            created_at=datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                            modified_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            size_bytes=stat.st_size,
+                            status=status,
+                            instruction=content
+                        ))
+        
         # Sort by creation time (newest first)
         test_configs.sort(key=lambda x: x.created_at, reverse=True)
 
@@ -1041,8 +1629,10 @@ async def execute_quantumqa_test(request: RunTestRequest) -> Dict[str, Any]:
 
         # Prepare command
         cmd = [
-            "python", "quantumqa_runner.py", request.test_file_path, "--type",
-            request.test_type.lower()
+            "python", "quantumqa_runner.py", 
+            request.test_file_path,
+            "--type", request.test_type.lower(),
+            "--run-name", request.run_name
         ]
 
         # Handle credentials
@@ -1117,119 +1707,58 @@ api_credentials:
             log_f.write(f"Started at: {start_time.isoformat()}\n")
             log_f.write("=" * 50 + "\n\n")
             log_f.flush()
-
-        # Execute the command with proper output capture
+        
+        # Execute the command in detached mode (non-blocking)
         try:
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,  # Line buffered
-                universal_newlines=True,
-                cwd=os.getcwd())
-
-            # Read output in real-time and save to log file
-            output_lines = []
+            # Start process without blocking - redirect output to log file
             with open(log_file, 'a') as log_f:
-                for line in iter(process.stdout.readline, ''):
-                    if line:
-                        output_lines.append(line.strip())
-                        log_f.write(line)
-                        log_f.flush()
-                        logger.debug(f"Test output: {line.strip()}")
-
-            # Wait for process to complete
-            return_code = process.wait()
-            end_time = datetime.now()
-
-            # Write completion info to log
-            with open(log_file, 'a') as log_f:
-                log_f.write(f"\n" + "=" * 50 + "\n")
-                log_f.write(f"Completed at: {end_time.isoformat()}\n")
-                log_f.write(f"Return code: {return_code}\n")
-                log_f.write(
-                    f"Duration: {(end_time - start_time).total_seconds():.2f} seconds\n"
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=log_f,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    cwd=os.getcwd()
                 )
-
+            
+            # Store process info for tracking
+            process_info = {
+                "process": process,
+                "pid": process.pid,
+                "start_time": start_time.isoformat(),
+                "log_file": log_file,
+                "report_file": report_file,
+                "command": " ".join(cmd)
+            }
+            
+            logger.info(f"Started detached process PID {process.pid} for test: {request.run_name}")
+            
+            # Return immediately - process will be monitored by background task
+            return {
+                "run_name": request.run_name,
+                "status": "RUNNING",
+                "pid": process.pid,
+                "start_time": start_time.isoformat(),
+                "log_file": log_file,
+                "command": " ".join(cmd),
+                "process_info": process_info  # For background monitoring
+            }
+                
         except Exception as e:
-            return_code = 1
-            end_time = datetime.now()
-            error_msg = f"Process execution failed: {str(e)}"
+            error_msg = f"Failed to start process: {str(e)}"
             logger.error(error_msg)
 
             # Write error to log file
             with open(log_file, 'a') as log_f:
                 log_f.write(f"\nERROR: {error_msg}\n")
-                log_f.write(f"Failed at: {end_time.isoformat()}\n")
-
-            # Fallback: try running command and capturing output differently
-            try:
-                logger.info("Attempting fallback execution method...")
-                result = subprocess.run(cmd,
-                                        capture_output=True,
-                                        text=True,
-                                        timeout=request.options.timeout
-                                        if request.options else 300,
-                                        cwd=os.getcwd())
-
-                with open(log_file, 'a') as log_f:
-                    log_f.write(f"\n--- FALLBACK EXECUTION ---\n")
-                    log_f.write(f"STDOUT:\n{result.stdout}\n")
-                    log_f.write(f"STDERR:\n{result.stderr}\n")
-                    log_f.write(f"Return code: {result.returncode}\n")
-
-                return_code = result.returncode
-                output_lines = result.stdout.split(
-                    '\n') if result.stdout else []
-
-            except subprocess.TimeoutExpired:
-                with open(log_file, 'a') as log_f:
-                    log_f.write(
-                        f"\nERROR: Test execution timed out after {request.options.timeout if request.options else 300} seconds\n"
-                    )
-            except Exception as fallback_error:
-                with open(log_file, 'a') as log_f:
-                    log_f.write(f"\nFALLBACK ERROR: {str(fallback_error)}\n")
-
-        # Determine status
-        status = "COMPLETED" if return_code == 0 else "FAILED"
-
-        # Parse success rate from output if available
-        success_rate = None
-        for line in output_lines:
-            if "Success Rate:" in line:
-                try:
-                    parts = line.split("Success Rate:")
-                    if len(parts) > 1:
-                        rate_part = parts[1].strip().split()[0]
-                        success_rate = float(rate_part.replace('%', ''))
-                except:
-                    pass
-                break
-
-        # Create report data
-        report_data = {
-            "run_name": request.run_name,
-            "test_file": request.test_file_path,
-            "test_type": request.test_type,
-            "environment": request.env,
-            "status": status,
-            "start_time": start_time.isoformat(),
-            "end_time": end_time.isoformat(),
-            "duration_seconds": (end_time - start_time).total_seconds(),
-            "return_code": return_code,
-            "success_rate": success_rate,
-            "log_file": log_file,
-            "command": " ".join(cmd)
-        }
-
-        # Save report
-        with open(report_file, 'w') as f:
-            json.dump(report_data, f, indent=2)
-
-        return report_data
-
+                log_f.write(f"Failed at: {datetime.now().isoformat()}\n")
+            
+            return {
+                "run_name": request.run_name,
+                "status": "ERROR",
+                "error": error_msg,
+                "end_time": datetime.now().isoformat()
+            }
+        
     except Exception as e:
         logger.error(f"Error executing test: {e}")
         return {
@@ -1276,30 +1805,47 @@ async def run_test(request: RunTestRequest, background_tasks: BackgroundTasks):
                     detail="username and password are required for UI tests")
 
             if request.test_type == "API" and not request.credentials.api_key:
-                raise HTTPException(status_code=400,
-                                    detail="api_key is required for API tests")
-
-        # Mark test as running
+                raise HTTPException(status_code=400, detail="api_key is required for API tests")
+        
+        # Execute test and get process info
+        result = await execute_quantumqa_test(request)
+        
+        if result.get("status") == "ERROR":
+            # If immediate error, don't track as running
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to start test"))
+        
+        # Create initial report with all steps in 'waiting' status
+        initial_report = create_initial_report(
+            request.run_name,
+            request.test_file_path, 
+            request.test_type,
+            request.env,
+            result["start_time"]
+        )
+        
+        if not initial_report:
+            raise HTTPException(status_code=500, detail="Failed to create initial test report")
+        
+        # Store process info in running_tests for monitoring
         running_tests[request.run_name] = {
             "status": "RUNNING",
-            "start_time": datetime.now().isoformat(),
+            "start_time": result["start_time"],
             "test_file": request.test_file_path,
             "test_type": request.test_type,
-            "process": None
+            "environment": request.env,
+            "process": result["process_info"]["process"],
+            "pid": result["pid"],
+            "log_file": result["log_file"],
+            "report_file": result["process_info"]["report_file"],
+            "command": result["command"]
         }
-
-        # Execute test in background
-        async def run_and_cleanup():
-            try:
-                result = await execute_quantumqa_test(request)
-                running_tests[request.run_name].update(result)
-            finally:
-                # Remove from running tests when completed
-                if request.run_name in running_tests:
-                    del running_tests[request.run_name]
-
-        background_tasks.add_task(run_and_cleanup)
-
+        
+        # Start background monitoring task
+        async def monitor_test_process():
+            await monitor_running_test(request.run_name)
+        
+        background_tasks.add_task(monitor_test_process)
+        
         logger.info(f"Started test run: {request.run_name}")
 
         return {
@@ -1422,18 +1968,68 @@ async def get_run(run_name: str) -> RunDetail:
         # Check if test is currently running
         if run_name in running_tests:
             run_data = running_tests[run_name]
-            return RunDetail(run_name=run_name,
-                             test_file=run_data.get("test_file", "unknown"),
-                             test_type=run_data.get("test_type", "unknown"),
-                             environment="unknown",
-                             status="RUNNING",
-                             started_at=run_data.get("start_time", "unknown"),
-                             steps_total=0,
-                             steps_passed=0,
-                             steps_failed=0,
-                             log_file_url=f"/runs/{run_name}/logs",
-                             report_file_url=f"/runs/{run_name}/report")
-
+            
+            # Try to read current progress from structured report file
+            report_file = Path(f"reports/{run_name}.txt")
+            if report_file.exists():
+                try:
+                    with open(report_file, 'r') as f:
+                        report_data = json.load(f)
+                    
+                    # Convert report steps to StepResult objects
+                    steps = []
+                    for step_data in report_data.get("steps", []):
+                        steps.append(StepResult(
+                            step_number=step_data["step_number"],
+                            instruction=step_data["instruction"],
+                            status=step_data["status"],
+                            duration_seconds=step_data["duration_seconds"],
+                            screenshot=step_data.get("screenshot"),
+                            failure_reason=step_data.get("failure_reason")
+                        ))
+                    
+                    return RunDetail(
+                        run_name=run_name,
+                        test_file=report_data.get("test_file", run_data.get("test_file", "unknown")),
+                        test_type=report_data.get("test_type", run_data.get("test_type", "unknown")),
+                        environment=report_data.get("environment", run_data.get("environment", "unknown")),
+                        status="RUNNING",
+                        started_at=report_data.get("start_time", run_data.get("start_time", "unknown")),
+                        steps_total=report_data.get("steps_total", 0),
+                        steps_passed=report_data.get("steps_passed", 0),
+                        steps_failed=report_data.get("steps_failed", 0),
+                        steps_skipped=report_data.get("steps_skipped", 0),
+                        steps_executed=report_data.get("steps_executed", 0),
+                        steps=steps,
+                        log_file_url=f"/runs/{run_name}/logs",
+                        report_file_url=f"/runs/{run_name}/report"
+                    )
+                    
+                except Exception as e:
+                    logger.warning(f"Error reading structured report for running test {run_name}: {e}")
+            
+            # Fallback to log parsing if structured report not available
+            log_file = Path(f"logs/{run_name}.txt")
+            steps, total_steps, passed_steps, failed_steps = parse_log_file_for_steps(log_file)
+            steps_executed = len(steps)
+            
+            return RunDetail(
+                run_name=run_name,
+                test_file=run_data.get("test_file", "unknown"),
+                test_type=run_data.get("test_type", "unknown"),
+                environment=run_data.get("environment", "unknown"),
+                status="RUNNING",
+                started_at=run_data.get("start_time", "unknown"),
+                steps_total=total_steps,
+                steps_passed=passed_steps,
+                steps_failed=failed_steps,
+                steps_skipped=0,  # No way to calculate from log parsing
+                steps_executed=steps_executed,
+                steps=steps,
+                log_file_url=f"/runs/{run_name}/logs",
+                report_file_url=f"/runs/{run_name}/report"
+            )
+        
         # Look for completed test report
         report_file = Path(f"reports/{run_name}.txt")
         if not report_file.exists():
@@ -1445,9 +2041,36 @@ async def get_run(run_name: str) -> RunDetail:
             try:
                 report_data = json.load(f)
             except json.JSONDecodeError:
-                raise HTTPException(status_code=500,
-                                    detail="Invalid report format")
-
+                raise HTTPException(status_code=500, detail="Invalid report format")
+        
+        # Check if this is a structured report with steps data
+        steps = []
+        if "steps" in report_data and report_data["steps"]:
+            # Use structured step data from report
+            for step_data in report_data["steps"]:
+                steps.append(StepResult(
+                    step_number=step_data["step_number"],
+                    instruction=step_data["instruction"],
+                    status=step_data["status"],
+                    duration_seconds=step_data["duration_seconds"],
+                    screenshot=step_data.get("screenshot"),
+                    failure_reason=step_data.get("failure_reason")
+                ))
+            
+            # Use data from structured report
+            total_steps = report_data.get("steps_total", len(steps))
+            passed_steps = report_data.get("steps_passed", 0)
+            failed_steps = report_data.get("steps_failed", 0)
+            executed_steps = report_data.get("steps_executed", 0)
+        else:
+            # Fallback: parse logs for step information (legacy reports)
+            log_file = Path(f"logs/{run_name}.txt")
+            steps, total_steps, passed_steps, failed_steps = parse_log_file_for_steps(log_file)
+            executed_steps = len(steps)
+        
+        # Find GIF file if available
+        gif_file_path = find_gif_file(run_name)
+        
         return RunDetail(
             run_name=run_name,
             test_file=report_data.get("test_file", "unknown"),
@@ -1458,13 +2081,18 @@ async def get_run(run_name: str) -> RunDetail:
             completed_at=report_data.get("end_time"),
             duration_seconds=report_data.get("duration_seconds"),
             success_rate=report_data.get("success_rate"),
-            steps_total=0,  # Would need to parse from output
-            steps_passed=0,  # Would need to parse from output
-            steps_failed=0,  # Would need to parse from output
+            steps_total=total_steps,
+            steps_passed=passed_steps,
+            steps_failed=failed_steps,
+            steps_skipped=skipped_steps,
+            steps_executed=executed_steps,
+            steps=steps,
             error_summary=report_data.get("error"),
             log_file_url=f"/runs/{run_name}/logs",
-            report_file_url=f"/runs/{run_name}/report")
-
+            report_file_url=f"/runs/{run_name}/report",
+            gif_file_path=gif_file_path
+        )
+        
     except HTTPException:
         raise
     except Exception as e:
@@ -1535,10 +2163,21 @@ async def cancel_run(run_name: str):
         run_data = running_tests[run_name]
         if "process" in run_data and run_data["process"]:
             try:
-                run_data["process"].terminate()
-            except:
-                pass
-
+                process = run_data["process"]
+                process.terminate()
+                
+                # Wait a bit for graceful termination
+                import time
+                time.sleep(2)
+                
+                # Force kill if still running
+                if process.poll() is None:
+                    process.kill()
+                    
+                logger.info(f"Terminated process PID {run_data.get('pid', 'unknown')} for test: {run_name}")
+            except Exception as e:
+                logger.warning(f"Error terminating process for {run_name}: {e}")
+        
         # Remove from running tests
         del running_tests[run_name]
 
@@ -1578,7 +2217,31 @@ async def get_status():
         completed_runs = len(list(
             Path("reports").glob("*.txt"))) if Path("reports").exists() else 0
         running_tests_count = len(running_tests)
-
+        
+        # Calculate step statistics across all completed reports
+        step_stats = {
+            "total_steps": 0,
+            "passed_steps": 0,
+            "failed_steps": 0,
+            "skipped_steps": 0,
+            "executed_steps": 0
+        }
+        
+        if Path("reports").exists():
+            for report_file in Path("reports").glob("*.txt"):
+                try:
+                    with open(report_file, 'r') as f:
+                        report_data = json.load(f)
+                    
+                    step_stats["total_steps"] += report_data.get("steps_total", 0)
+                    step_stats["passed_steps"] += report_data.get("steps_passed", 0)
+                    step_stats["failed_steps"] += report_data.get("steps_failed", 0)
+                    step_stats["skipped_steps"] += report_data.get("steps_skipped", 0)
+                    step_stats["executed_steps"] += report_data.get("steps_executed", 0)
+                    
+                except (json.JSONDecodeError, Exception):
+                    continue  # Skip invalid report files
+        
         return {
             "status": "healthy",
             "timestamp": datetime.now().isoformat(),
@@ -1592,6 +2255,13 @@ async def get_status():
                     "completed_runs": completed_runs,
                     "running_tests": running_tests_count,
                     "total_runs": completed_runs + running_tests_count
+                },
+                "steps": {
+                    "total_steps": step_stats["total_steps"],
+                    "passed_steps": step_stats["passed_steps"],
+                    "failed_steps": step_stats["failed_steps"],
+                    "skipped_steps": step_stats["skipped_steps"],
+                    "executed_steps": step_stats["executed_steps"]
                 }
             },
             "currently_running": list(running_tests.keys())
@@ -1815,9 +2485,26 @@ async def update_credentials(credential_id: str,
         raise
     except Exception as e:
         logger.error(f"Error updating credential {credential_id}: {e}")
-        raise HTTPException(status_code=500,
-                            detail=f"Failed to update credential: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update credential: {str(e)}")
 
+@app.post("/internal/update-step/{run_name}/{step_number}", summary="Internal: Update Step Status")
+async def update_step_status_internal(
+    run_name: str, 
+    step_number: int,
+    status: str = Query(..., description="Step status: running, passed, failed"),
+    failure_reason: Optional[str] = Query(None, description="Failure reason if status is failed"),
+    duration: float = Query(0.0, description="Step duration in seconds")
+):
+    """Internal endpoint for engines to update step status in real-time."""
+    try:
+        success = update_step_status(run_name, step_number, status, failure_reason, duration)
+        if success:
+            return {"message": "Step status updated", "run_name": run_name, "step_number": step_number, "status": status}
+        else:
+            raise HTTPException(status_code=404, detail=f"Run '{run_name}' or step {step_number} not found")
+    except Exception as e:
+        logger.error(f"Error updating step status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update step status: {str(e)}")
 
 @app.delete("/credentials/{credential_id}", summary="Delete Credentials")
 async def delete_credentials(credential_id: str):

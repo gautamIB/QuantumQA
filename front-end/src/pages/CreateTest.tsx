@@ -25,13 +25,13 @@ export const CreateTest: React.FC = () => {
     setFormData(initialFormData);
   };
 
-  const isFormValid = formData[FORM_LABELS.TEST_NAME].trim().length > 0;
+  const isFormInvalid = !formData[FORM_LABELS.TEST_NAME] || !formData[FORM_LABELS.STEPS];
 
   return (
       <Container direction="column">
         <CreateTopBar
           handleCreate={handleCreateTest}
-          isDisabled={!isFormValid || isLoading}
+          isDisabled={isFormInvalid || isLoading}
         />
         <FlexItem grow={1} shrink={1}>
           <TestForm

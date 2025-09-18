@@ -243,47 +243,71 @@ class ElementFinder:
 
         except Exception:
             return None
-
-    async def find_input_field(
-            self,
-            page: Page,
-            field_description: str,
-            field_type: Optional[str] = None) -> Optional[Locator]:
-        """Find input field using intelligent strategies."""
-
-        print(f"    🔍 Smart search for input field: '{field_description}'")
-
+    
+    async def find_input_field(self, page: Page, field_description: str, field_type: Optional[str] = None) -> Optional[Locator]:
+        """Find input field using intelligent strategies with enhanced stability."""
+        
+        print(f"    🔍 Enhanced smart search for input field: '{field_description}'")
+        
         # Generate field selectors based on description and type
-        selectors = self._generate_field_selectors(field_description,
-                                                   field_type)
-
-        for selector_info in selectors:
-            try:
-                selector = selector_info["selector"]
-                strategy = selector_info["strategy"]
-
-                element = page.locator(selector).first
-
-                if await element.count() > 0 and await element.is_visible(
-                        timeout=2000):
-                    # Verify it's actually an input field
-                    tag_name = await element.evaluate(
-                        "el => el.tagName.toLowerCase()")
-                    if tag_name in ["input", "textarea"]:
-                        print(
-                            f"    ✅ Found input field using {strategy}: {selector}"
-                        )
-                        return element
-
-            except Exception:
-                continue
-
-        print(f"    ❌ Could not find input field: '{field_description}'")
+        selectors = self._generate_field_selectors(field_description, field_type)
+        
+        # Retry mechanism for stability
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            if attempt > 0:
+                print(f"    🔄 Retry attempt {attempt + 1}/{max_attempts}")
+                await asyncio.sleep(1)  # Wait between attempts
+        
+            for selector_info in selectors:
+                try:
+                    selector = selector_info["selector"]
+                    strategy = selector_info["strategy"]
+                    
+                    element = page.locator(selector).first
+                    
+                    # Enhanced timeout for stability
+                    timeout = 5000 if attempt == 0 else 2000
+                    if await element.count() > 0:
+                        try:
+                            await element.wait_for(state="visible", timeout=timeout)
+                            
+                            # Verify it's actually an input field
+                            tag_name = await element.evaluate("el => el.tagName.toLowerCase()")
+                            if tag_name in ["input", "textarea"]:
+                                # Additional interactability check
+                                if await self._is_element_interactable(element):
+                                    print(f"    ✅ Found stable input field using {strategy}: {selector}")
+                                    return element
+                                else:
+                                    print(f"    ⚠️ Field found but not interactable: {strategy}")
+                                    continue
+                        except Exception:
+                            continue
+                            
+                except Exception:
+                    continue
+        
+        print(f"    ❌ Could not find stable input field after {max_attempts} attempts: '{field_description}'")
         return None
-
-    def _generate_click_selectors(
-            self, target: str, context: Dict[str,
-                                             Any]) -> List[Dict[str, Any]]:
+        
+    async def _is_element_interactable(self, element: Locator) -> bool:
+        """Check if element is truly interactable."""
+        try:
+            # Check basic visibility and enabled state
+            if not await element.is_visible() or not await element.is_enabled():
+                return False
+            
+            # Check if element is not hidden by others
+            box = await element.bounding_box()
+            if not box or box['width'] <= 0 or box['height'] <= 0:
+                return False
+                
+            return True
+        except Exception:
+            return False
+    
+    def _generate_click_selectors(self, target: str, context: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Generate intelligent click selectors based on target and context."""
         print(f"    🔍 Generating click selectors for: '{target}'")
         selectors = []
@@ -804,26 +828,24 @@ class ElementFinder:
 
         selectors = []
         field_lower = field_description.lower()
-
-        # Strategy 1: Prioritize text inputs and textareas (MOST IMPORTANT)
-        if "message" in field_lower or "input" in field_lower or "text" in field_lower:
+        
+        # Extract placeholder text from complex descriptions
+        placeholder_text = self._extract_placeholder_text(field_description)
+        print(f"    🔍 Extracted placeholder: '{placeholder_text}' from '{field_description}'")
+        
+        # Strategy 0: Force textarea priority if specified in field type or description
+        if field_type == "textarea" or "text area" in field_lower or "textarea" in field_lower:
             selectors.extend([
-                {
-                    "selector": "input[type='text']:visible",
-                    "strategy": "text_input",
-                    "priority": 1
-                },
-                {
-                    "selector": "textarea:visible",
-                    "strategy": "textarea",
-                    "priority": 1
-                },
-                {
-                    "selector":
-                    "input:not([type='checkbox']):not([type='radio']):not([type='submit']):not([type='button']):visible",
-                    "strategy": "generic_input",
-                    "priority": 2
-                },
+                {"selector": "textarea:visible", "strategy": "textarea_priority", "priority": 1},
+                {"selector": "textarea", "strategy": "textarea_any", "priority": 2},
+            ])
+            
+        # Strategy 1: Prioritize text inputs and textareas (MOST IMPORTANT)
+        if "message" in field_lower or "input" in field_lower or "text" in field_lower or "query" in field_lower:
+            selectors.extend([
+                {"selector": "textarea:visible", "strategy": "textarea", "priority": 1},
+                {"selector": "input[type='text']:visible", "strategy": "text_input", "priority": 2},
+                {"selector": "input:not([type='checkbox']):not([type='radio']):not([type='submit']):not([type='button']):visible", "strategy": "generic_input", "priority": 3},
             ])
 
         # Strategy 2: Type-specific selectors (high priority)
@@ -833,20 +855,33 @@ class ElementFinder:
                 "strategy": f"{field_type}_type",
                 "priority": 1
             })
-
-        # Strategy 3: Placeholder matching
+        
+        # Strategy 3: Enhanced placeholder matching with extracted text
+        if placeholder_text:
+            selectors.extend([
+                {"selector": f"textarea[placeholder*='{placeholder_text}' i]", "strategy": "textarea_placeholder_exact", "priority": 1},
+                {"selector": f"input[placeholder*='{placeholder_text}' i]:not([type='checkbox']):not([type='radio'])", "strategy": "input_placeholder_exact", "priority": 2},
+                # Try exact match for better precision
+                {"selector": f"textarea[placeholder='{placeholder_text}' i]", "strategy": "textarea_placeholder_exact_match", "priority": 1},
+                {"selector": f"input[placeholder='{placeholder_text}' i]:not([type='checkbox']):not([type='radio'])", "strategy": "input_placeholder_exact_match", "priority": 2},
+                # Also try with the full description
+                {"selector": f"textarea[placeholder*='{field_description}' i]", "strategy": "textarea_placeholder_full", "priority": 4},
+                {"selector": f"input[placeholder*='{field_description}' i]:not([type='checkbox']):not([type='radio'])", "strategy": "input_placeholder_full", "priority": 5},
+            ])
+        else:
+            # Fallback to original placeholder matching
+            selectors.extend([
+                {"selector": f"textarea[placeholder*='{field_description}' i]", "strategy": "textarea_placeholder", "priority": 3},
+                {"selector": f"input[placeholder*='{field_description}' i]:not([type='checkbox']):not([type='radio'])", "strategy": "placeholder", "priority": 4},
+            ])
+            
+        # Strategy 3.5: Try common textarea patterns for dynamic apps
         selectors.extend([
-            {
-                "selector":
-                f"input[placeholder*='{field_description}' i]:not([type='checkbox']):not([type='radio'])",
-                "strategy": "placeholder",
-                "priority": 3
-            },
-            {
-                "selector": f"textarea[placeholder*='{field_description}' i]",
-                "strategy": "textarea_placeholder",
-                "priority": 3
-            },
+            {"selector": "textarea:visible", "strategy": "any_visible_textarea", "priority": 6},
+            {"selector": "textarea[class*='input']", "strategy": "textarea_input_class", "priority": 5},
+            {"selector": "textarea[class*='text']", "strategy": "textarea_text_class", "priority": 5},
+            {"selector": "textarea[class*='query']", "strategy": "textarea_query_class", "priority": 3},
+            {"selector": "textarea[class*='message']", "strategy": "textarea_message_class", "priority": 4},
         ])
 
         # Strategy 4: Name attribute matching
@@ -1230,3 +1265,63 @@ class ElementFinder:
         ])
 
         return selectors
+    
+    def _extract_placeholder_text(self, field_description: str) -> str:
+        """Extract placeholder text from complex field descriptions."""
+        import re
+        
+        # Look for text within quotes in the description - enhanced patterns
+        quote_patterns = [
+            r'placeholder\s+["\']([^"\']+)["\']',  # placeholder "text"
+            r'["\']([^"\']+)["\']',                # any "text" 
+            r'[""]([^""]+)[""]',                   # smart quotes "text"
+            r'"([^"]+)"',                          # double quotes
+            r"'([^']+)'",                          # single quotes
+        ]
+        
+        for pattern in quote_patterns:
+            match = re.search(pattern, field_description, re.IGNORECASE)
+            if match:
+                extracted = match.group(1).strip()
+                # Don't return very long extracted text as it's likely not a placeholder
+                if len(extracted) <= 50:
+                    print(f"    📝 Extracted placeholder from quotes: '{extracted}'")
+                    return extracted
+        
+        # Enhanced key phrase extraction for common combinations
+        field_lower = field_description.lower()
+        
+        # Look for specific common placeholder phrases
+        common_phrases = [
+            ("query your files", "Query your files"),
+            ("search files", "search"),
+            ("enter text", "enter"),
+            ("type message", "message"),
+            ("ask question", "question"),
+        ]
+        
+        for phrase, extracted in common_phrases:
+            if phrase in field_lower:
+                print(f"    🎯 Extracted placeholder from phrase: '{extracted}'")
+                return extracted
+        
+        # Look for individual key terms that might be placeholder hints
+        key_terms = []
+        
+        if "query" in field_lower:
+            key_terms.append("query")
+        if "search" in field_lower:
+            key_terms.append("search")
+        if "message" in field_lower:
+            key_terms.append("message")
+        if "files" in field_lower:
+            key_terms.append("files")
+        if "text" in field_lower:
+            key_terms.append("text")
+            
+        # Return the most relevant key term
+        if key_terms:
+            print(f"    🔍 Extracted placeholder from keywords: '{key_terms[0]}'")
+            return key_terms[0]
+            
+        return ""
