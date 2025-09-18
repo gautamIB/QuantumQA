@@ -107,7 +107,7 @@ export const TestForm = ({
                     description: TEST_OPTIONS_DESCRIPTION_MAP[value],
                   })}
                   fullWidth
-                  readOnly={isReadOnly}
+                  disabled={isReadOnly}
                 />
               </FlexItem>
             </FlexContainer>
