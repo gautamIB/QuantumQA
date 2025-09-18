@@ -1,0 +1,61 @@
+#Merged Test Cases:
+# Pre-requisite: Setup the environment as described in the provided link: https://docs.google.com/document/d/1IndR3LfrkciQR-M_of76Rdxd9uAIMRSaXRirhTLyBcw/edit
+
+1. Navigate to https://aihub.instabase.com/
+2. Verify that the AIHub homepage loads successfully.
+3. Login to AIHub homepage with {cred:aihub-prod.prod_username} and {cred:aihub-prod.prod_password} if not already logged in.
+4. Verify that the user is logged in successfully.
+5. Click on Workspaces on the top menu bar.
+
+# Test Name: Test CSV processing
+6. Click on Converse App.
+7. Upload file from path: https://drive.google.com/drive/folders/1_JQzrUVKreOCA7eRfC06l1KUA8xbwJ9M
+8. Wait for the file to be digitized successfully.
+9. Verify that the uploaded CSV is visible in Converse App.
+10. Run a general query like "what's this file?" and verify the response.
+11. Run an SQL-type query like "how many columns are there in this document?" and verify the response.
+
+# Test Name: Test moderation
+12. Click on Converse App.
+13. Explore moderation functionality.
+
+# Test Name: Test format response as a table
+14. Click on Converse App.
+15. Explore query format as a table functionality.
+
+# Test Name: Test long doc sample
+16. Click on Converse App.
+17. Upload file from path: https://drive.google.com/drive/folders/1qOV7xISbsEzHGMHiMr3SI5JNUs9pP36J
+18. Wait for the file to be digitized successfully.
+19. Type questions listed in the JSON file in the above location.
+20. Verify the accuracy of the model answer for the majority of questions.
+21. Verify the correctness of the provenance for the majority of questions.
+
+# Test Name: Test short doc sample
+22. Click on Converse App.
+23. Upload file from path: https://drive.google.com/drive/folders/1pxcmE5yFHAg5elojrnmuM_2nd9IbRFdM
+24. Wait for the file to be digitized successfully.
+25. Type questions about the document.
+26. Verify the accuracy of the model answer for the majority of questions.
+27. Verify the correctness of the provenance for the majority of questions.
+
+# Test Name: Test JSON rendering output
+28. Click on Converse App.
+29. Upload file from path: https://drive.google.com/drive/folders/1qOV7xISbsEzHGMHiMr3SI5JNUs9pP36J
+30. Wait for the file to be digitized successfully.
+31. Type a question that would require a JSON as an output.
+32. Verify if the JSON appears in the code block.
+
+# Test Name: Test long doc sample on form-recognizer
+33. Click on Converse App.
+34. Create a project with "Advanced table and checkbox extraction" enabled.
+35. Upload a new file from https://docs.google.com/spreadsheets/d/1Pm8KeAlZ-8PP9GnDbdDapi1RjhIC43m0/edit?usp=drive_link&ouid=115156425595654704301&rtpof=true&sd=true
+36. Confirm that the file was processed correctly.
+37. Run the model with query "Extract all tables for the document" and verify the extraction accuracy.
+
+# Test Name: Test non-english doc with form recognizer
+38. Click on Converse App.
+39. Create a project with "Advanced table and checkbox extraction" enabled.
+40. Upload a new file from https://drive.google.com/file/d/1ZISJ_QH8t29NS74K8kgQOYDXhsFU_avo/view?usp=drive_link
+41. Confirm that the file was processed correctly.
+42. Run the model with query "Extract all tables for the document" and verify the extraction accuracy.
