@@ -84,9 +84,9 @@ class APIDocumentationParser:
         global_headers = data.get('global_headers', {})
         global_auth = data.get('global_auth')
         
-        # Parse endpoints
+        # Parse endpoints (support both 'endpoints' and 'tests' arrays)
         endpoints = []
-        endpoints_data = data.get('endpoints', [])
+        endpoints_data = data.get('endpoints', data.get('tests', []))
         
         for i, endpoint_data in enumerate(endpoints_data):
             try:
@@ -113,14 +113,16 @@ class APIDocumentationParser:
         # Required fields
         name = data.get('name', 'Unnamed Endpoint')
         method = data.get('method', 'GET').upper()
-        url = data.get('url', '')
+        # Support both 'url' (advanced format) and 'endpoint' (simple format)
+        url = data.get('url', data.get('endpoint', ''))
         
         if not url:
             raise ValueError("Endpoint URL is required")
         
         # Optional fields with defaults
         description = data.get('description', f"{method} {url}")
-        payload = data.get('payload')
+        # Support both 'payload' (advanced format) and 'body' (simple format)
+        payload = data.get('payload', data.get('body'))
         expected_status = data.get('expected_status', 200)
         expected_response = data.get('expected_response')
         timeout = data.get('timeout', 30)

@@ -174,22 +174,10 @@ class HTTPClient:
             # Handle different credential formats
             if '.' in auth_credential:
                 # Nested credential reference (e.g., 'api.token')
-                parts = auth_credential.split('.')
-                credential = await self.credential_manager.get_credential(parts[0])
-                
-                if len(parts) == 2:
-                    auth_value = credential.get(parts[1])
-                else:
-                    # Deep nested access
-                    auth_value = credential
-                    for part in parts[1:]:
-                        auth_value = auth_value.get(part) if isinstance(auth_value, dict) else None
-                        if auth_value is None:
-                            break
+                auth_value = self.credential_manager.get_credential(auth_credential)
             else:
                 # Simple credential reference
-                credential = await self.credential_manager.get_credential(auth_credential)
-                auth_value = credential
+                auth_value = self.credential_manager.get_credential(auth_credential)
             
             if auth_value is None:
                 print(f"⚠️ Warning: No authentication value found for '{auth_credential}'")

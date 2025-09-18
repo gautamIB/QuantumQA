@@ -1914,11 +1914,26 @@ ui_credentials:
   password: "{credentials.get('password')}"
   base_url: "{env}"
 """
+            # Handle API credentials - support both api_key and token
             if credentials.get('api_key'):
                 creds_content += f"""
 api_credentials:
   api_key: "{credentials.get('api_key')}"
   base_url: "{env}"
+"""
+            if credentials.get('token'):
+                # Extract service name from env URL or use default
+                service_name = "aihub"  # Default service name
+                if "aihub" in env.lower():
+                    service_name = "aihub"
+                elif "api" in env.lower():
+                    service_name = "api"
+                
+                creds_content += f"""
+{service_name}:
+  token: "{credentials.get('token')}"
+  username: "{credentials.get('username', '')}"
+  password: "{credentials.get('password', '')}"
 """
         elif credential_id:
             # Load stored credentials
@@ -1939,18 +1954,41 @@ ui_credentials:
   password: "{stored_creds.password}"
   base_url: "{env}"
 """
+            # Handle stored API credentials - support both api_key and token  
             if stored_creds.api_key:
                 creds_content += f"""
 api_credentials:
   api_key: "{stored_creds.api_key}"
   base_url: "{env}"
 """
+            # Check if stored credentials have token field
+            if hasattr(stored_creds, 'token') and stored_creds.token:
+                # Extract service name from env URL or use default
+                service_name = "aihub"  # Default service name
+                if "aihub" in env.lower():
+                    service_name = "aihub"
+                elif "api" in env.lower():
+                    service_name = "api"
+                
+                creds_content += f"""
+{service_name}:
+  token: "{stored_creds.token}"
+  username: "{stored_creds.username if hasattr(stored_creds, 'username') and stored_creds.username else ''}"
+  password: "{stored_creds.password if hasattr(stored_creds, 'password') and stored_creds.password else ''}"
+"""
 
-        if creds_content:
+        # If no credentials content generated, copy from main credentials file
+        if not creds_content:
+            main_creds_file = "quantumqa/config/credentials.yaml"
+            if Path(main_creds_file).exists():
+                logger.info(f"Using main credentials file: {main_creds_file}")
+                cmd.extend(["--credentials", main_creds_file])
+        else:
             # Create temporary credentials file
             creds_file = f"logs/{run_name}_creds.yaml"
             with open(creds_file, 'w') as f:
                 f.write(creds_content)
+            logger.info(f"Created temporary credentials file: {creds_file}")
             cmd.extend(["--credentials", creds_file])
 
         # Add options
