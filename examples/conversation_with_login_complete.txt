@@ -9,21 +9,18 @@ verify that dropdown has the button for APP, Conversation, Chatbot
 Click on "Conversation" button from dropdown option
 
 # === MANDATORY DOCUMENT UPLOAD ===
-# Click on "files", it should be highlighted with purple color
-# PLACEHOLDER: User should replace this path with actual local file path
-Upload file from path: "/Users/gautam/Downloads/Kiran.pdf"
+Upload file from path: "/Users/jeminjain/Downloads/dummy-pan.pdf"
 Verify that file selection dialog appears
 Verify that selected file is accepted for upload
-Click somewhere outside the dialog to disappears
 
 # === DOCUMENT PROCESSING VERIFICATION ===
 Verify that processing screen appears in bottom left corner
 Verify that processing status indicates "Processing..." or "Digitizing..."
-Wait for processing to complete (10 seconds to 2 minutes)
+Wait for processing files progress bar to complete
 Verify that processing screen disappears when complete
 
 # === CONVERSATION INTERACTION - FIRST MESSAGE ===
-Click on "Query your files" text area in the bottom right panel and type "Summarise this document in 100 words in Spanish"
+Click on textarea with PLACEHOLDER "Query your files" in the bottom right panel and type "Summarise this document in 100 words in Spanish"
 Press Enter
 
 # === STREAMING RESPONSE VERIFICATION ===
@@ -32,7 +29,7 @@ Verify that response text appears gradually (streaming effect)
 Wait for streaming response to complete fully
 
 # === CONVERSATION INTERACTION - SECOND MESSAGE ===
-Click on "Query your files" text area in the bottom right panel and type "Summarise this document in 100 words in English"
+Click on textarea with PLACEHOLDER "Query your files" in the bottom right panel and type "Summarise this document in 100 words in English"
 Press Enter
 
 # === STREAMING RESPONSE VERIFICATION ===
