@@ -107,7 +107,7 @@ export const TestForm = ({
                     description: TEST_OPTIONS_DESCRIPTION_MAP[value],
                   })}
                   fullWidth
-                  disabled={isReadOnly}
+                  readOnly={isReadOnly}
                 />
               </FlexItem>
             </FlexContainer>
@@ -149,7 +149,7 @@ export const TestForm = ({
                     value={formData[FORM_LABELS.API_YAML]?.name || "No file selected"}
                     label="API YAML file"
                     fullWidth
-                    disabled
+                    readOnly
                   />
                 </FlexItem>
                 <FlexItem>
@@ -170,7 +170,7 @@ export const TestForm = ({
                 rows={25}
                 label={STEPS_LABEL[formData[FORM_LABELS.TEST_TYPE] as TEST_OPTIONS]}
                 fullWidth
-                disabled={formData[FORM_LABELS.TEST_TYPE] !== TEST_OPTIONS.END_TO_END_TEST}
+                readOnly={isReadOnly || formData[FORM_LABELS.TEST_TYPE] !== TEST_OPTIONS.END_TO_END_TEST}
               />
             </Box>
           </FormContainer>
