@@ -2989,13 +2989,13 @@ async def serve_ui_root():
 
 class TestmoExportSettings(BaseModel):
     instruction_file: Optional[
-        str] = "/Users/jeminjain/ProjectsOnGit/QuantumQA/examples/export_testmo_results.txt"
+        str] = "examples/export_testmo_results.txt"
     input_file: Optional[
-        str] = "/Users/jeminjain/ProjectsOnGit/QuantumQA/downloads/testmo-export-run-87.csv"
+        str] = "examples/testmo-export-run-87.csv"
     output_file: Optional[
-        str] = "/Users/jeminjain/ProjectsOnGit/QuantumQA/downloads/testmo-cases.json"
+        str] = "examples/testmo-cases.json"
     generated_file_path: Optional[
-        str] = "/Users/jeminjain/ProjectsOnGit/QuantumQA/generated_instructions/testmo_generated_instructions.txt"
+        str] = "generated_instructions/testmo_generated_instructions.txt"
     headless: bool = True
     connect_to_existing: bool = False
     debug_port: int = 9222
@@ -3034,7 +3034,7 @@ async def process_testmo_export(settings: TestmoExportSettings):
             content_instructions = ""
             # Replace the testmo instructions file path HERE
             with open(
-                    '/Users/jeminjain/ProjectsOnGit/QuantumQA/examples/conversation_with_login_complete.txt',
+                    'examples/conversation_with_login_complete.txt',
                     'r',
                     encoding='utf-8') as f:
                 content_instructions = f.read()
