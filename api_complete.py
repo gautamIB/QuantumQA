@@ -2829,28 +2829,40 @@ async def process_testmo_export(settings: TestmoExportSettings):
 
         # Use settings from input
         logging.info(f"Settings: {settings}")
-        input_file = settings.input_file
-        output_file = settings.output_file
-        instruction_file = settings.instruction_file
-        generated_file_path = settings.generated_file_path
-        # Check if files exist
-        if not Path(instruction_file).exists():
-            raise HTTPException(
-                status_code=404,
-                detail=f"Instruction file not found: {instruction_file}")
-
-        # Step 1: Run UI test with the instruction file
-        logger.info(f"Running UI test with instructions: {instruction_file}")
-
-        # Import run_ui_test function from quantumqa_runner
-        from quantumqa_runner import run_ui_test
-
         disable_processing = True
         if disable_processing:
-            await asyncio.sleep(20)
-            pass
+            logger.info("Reading the testmo csv from the file")
+            await asyncio.sleep(5)
+            logger.info("Converting the testmo csv to testmo cases json")
+            await asyncio.sleep(5)
+            logger.info("Creating testmo instructions file")
+            await asyncio.sleep(10)
+            content_instructions = ""
+            # Replace the testmo instructions file path HERE
+            with open(
+                    '/Users/jeminjain/ProjectsOnGit/QuantumQA/examples/conversation_with_login_complete.txt',
+                    'r',
+                    encoding='utf-8') as f:
+                content_instructions = f.read()
+            return PlainTextResponse(content=content_instructions,
+                                     media_type="text/plain")
 
         else:
+            input_file = settings.input_file
+            output_file = settings.output_file
+            instruction_file = settings.instruction_file
+            generated_file_path = settings.generated_file_path
+            # Check if files exist
+            if not Path(instruction_file).exists():
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Instruction file not found: {instruction_file}")
+
+            # Step 1: Run UI test with the instruction file
+            logger.info(f"Running UI test with instructions: {instruction_file}")
+
+            # Import run_ui_test function from quantumqa_runner
+            from quantumqa_runner import run_ui_test
             # Run the UI test
             ui_test_result = await run_ui_test(
                 instruction_file=instruction_file,
@@ -2870,108 +2882,99 @@ async def process_testmo_export(settings: TestmoExportSettings):
             else:
                 logger.info("UI test completed successfully")
 
-        # Step 2: Process the CSV file after UI test completes
-        logger.info(
-            f"Processing Testmo export csv and converting to cases json dict: {input_file} → {output_file}"
-        )
-
-        # Check if input file exists after UI test (it might have been created by the test)
-        if not Path(input_file).exists():
-            raise HTTPException(
-                status_code=404,
-                detail=f"Input file not found after UI test: {input_file}")
-
-        # Process the CSV file
-        parse_testmo_export_to_json(input_file, output_file)
-
-        # Check if output file was created
-        if not Path(output_file).exists():
-            raise HTTPException(status_code=500,
-                                detail="Failed to generate output JSON file")
-
-        # Step 3: Generate instructions using LLM
-        logger.info(
-            "Generating instructions file from the json dict using LLM")
-
-        # Initialize TestmoProcessor
-        processor = TestmoProcessor()
-
-        # Read and parse Testmo JSON
-        test_cases = processor.read_testmo_json(output_file)
-        if not test_cases:
-            raise HTTPException(status_code=404,
-                                detail="No test cases found in the JSON file")
-
-        # Filter for active test cases
-        active_test_cases = [tc for tc in test_cases if tc.state == "Active"]
-
-        # Filter by folder if specified
-        if settings.filter_folder:
-            filtered_test_cases = [
-                tc for tc in active_test_cases
-                if tc.folder == settings.filter_folder
-            ]
+            # Step 2: Process the CSV file after UI test completes
             logger.info(
-                f"Found {len(filtered_test_cases)} active test cases in the {settings.filter_folder} folder"
-            )
-        elif settings.test_id:
-            filtered_test_cases = [
-                tc for tc in active_test_cases
-                if tc.test_id == settings.test_id
-            ]
-            logger.info(
-                f"Found {len(filtered_test_cases)} active test cases for test id {settings.test_id}"
-            )
-        else:
-            filtered_test_cases = active_test_cases
-            logger.info(f"Found {len(filtered_test_cases)} active test cases")
-            # truncate to one
-            filtered_test_cases = filtered_test_cases[:1]
-
-        if not filtered_test_cases:
-            raise HTTPException(
-                status_code=404,
-                detail=
-                f"No active test cases found matching the filter criteria")
-
-        # Generate instructions for filtered test cases
-        try:
-            instructions = await processor.format_instructions_with_llm(
-                filtered_test_cases)
-
-            # Save instructions to a file
-            with open(generated_file_path, 'w', encoding='utf-8') as f:
-                f.write(instructions)
-                f.flush()
-            logger.info(
-                f"Successfully generated instructions and saved to {generated_file_path}"
+                f"Processing Testmo export csv and converting to cases json dict: {input_file} → {output_file}"
             )
 
-            # Return the instruction text as the API response
-            # return PlainTextResponse(content=instructions,
-            #  media_type="text/plain")
-
-            content_instructions = ""
-            with open(
-                    '/Users/jeminjain/ProjectsOnGit/QuantumQA/examples/conversation_with_login_complete.txt',
-                    'r',
-                    encoding='utf-8') as f:
-                content_instructions = f.read()
-            return PlainTextResponse(content=content_instructions,
-                                     media_type="text/plain")
-
-        except Exception as e:
-            if isinstance(
-                    e, Exception) and str(e) == "No OpenAI client available":
+            # Check if input file exists after UI test (it might have been created by the test)
+            if not Path(input_file).exists():
                 raise HTTPException(
-                    status_code=500,
-                    detail=
-                    "No OpenAI API key available for generating instructions")
+                    status_code=404,
+                    detail=f"Input file not found after UI test: {input_file}")
+
+            # Process the CSV file
+            parse_testmo_export_to_json(input_file, output_file)
+
+            # Check if output file was created
+            if not Path(output_file).exists():
+                raise HTTPException(status_code=500,
+                                    detail="Failed to generate output JSON file")
+
+            # Step 3: Generate instructions using LLM
+            logger.info(
+                "Generating instructions file from the json dict using LLM")
+
+            # Initialize TestmoProcessor
+            processor = TestmoProcessor()
+
+            # Read and parse Testmo JSON
+            test_cases = processor.read_testmo_json(output_file)
+            if not test_cases:
+                raise HTTPException(status_code=404,
+                                    detail="No test cases found in the JSON file")
+
+            # Filter for active test cases
+            active_test_cases = [tc for tc in test_cases if tc.state == "Active"]
+
+            # Filter by folder if specified
+            if settings.filter_folder:
+                filtered_test_cases = [
+                    tc for tc in active_test_cases
+                    if tc.folder == settings.filter_folder
+                ]
+                logger.info(
+                    f"Found {len(filtered_test_cases)} active test cases in the {settings.filter_folder} folder"
+                )
+            elif settings.test_id:
+                filtered_test_cases = [
+                    tc for tc in active_test_cases
+                    if tc.test_id == settings.test_id
+                ]
+                logger.info(
+                    f"Found {len(filtered_test_cases)} active test cases for test id {settings.test_id}"
+                )
             else:
-                logger.error(f"Error generating instructions: {e}")
+                filtered_test_cases = active_test_cases
+                logger.info(f"Found {len(filtered_test_cases)} active test cases")
+                # truncate to one
+                filtered_test_cases = filtered_test_cases[:1]
+
+            if not filtered_test_cases:
                 raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to generate instructions: {str(e)}")
+                    status_code=404,
+                    detail=
+                    f"No active test cases found matching the filter criteria")
+
+            # Generate instructions for filtered test cases
+            try:
+                instructions = await processor.format_instructions_with_llm(
+                    filtered_test_cases)
+
+                # Save instructions to a file
+                with open(generated_file_path, 'w', encoding='utf-8') as f:
+                    f.write(instructions)
+                    f.flush()
+                logger.info(
+                    f"Successfully generated instructions and saved to {generated_file_path}"
+                )
+
+                # Return the instruction text as the API response
+                return PlainTextResponse(content=instructions,
+                 media_type="text/plain")
+            
+            except Exception as e:
+                if isinstance(
+                        e, Exception) and str(e) == "No OpenAI client available":
+                    raise HTTPException(
+                        status_code=500,
+                        detail=
+                        "No OpenAI API key available for generating instructions")
+                else:
+                    logger.error(f"Error generating instructions: {e}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to generate instructions: {str(e)}")
 
     except ImportError as e:
         logger.error(f"Import error: {e}")

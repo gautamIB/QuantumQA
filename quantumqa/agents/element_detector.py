@@ -181,6 +181,7 @@ class ElementDetectorAgent(BaseAgent):
                 context=context or {}
             )
             
+            print(f"    👁️ Vision detection result: {result.dict()}")
             # Track performance
             detection_time = time.time() - start_time
             self.detection_times.append(detection_time)
