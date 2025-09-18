@@ -118,7 +118,7 @@ class CreateTestConfigRequest(BaseModel):
     test_name: str
     test_type: str  # "UI" or "API"
     instruction: Optional[str] = None  # For UI tests (text content)
-    apis_documentation: Optional[str] = None  # For API tests (YAML content)
+    apis_documentation: Optional[UploadFile] = File(None)  # For API tests (YAML content as string)
 
     @validator('test_type')
     def validate_test_type(cls, v):
@@ -127,10 +127,12 @@ class CreateTestConfigRequest(BaseModel):
         return v
 
 
+# UpdateTestConfigRequest model removed - now using Form data for updates
 class UpdateTestConfigRequest(BaseModel):
-    instruction: Optional[str] = None
-    apis_documentation: Optional[str] = None
-    test_type: Optional[str] = None
+    instruction: Optional[str] = Form(None)
+    apis_documentation: Optional[UploadFile] = File(None)
+    test_type: Optional[str] = Form(None)
+
 
 
 class Credentials(BaseModel):
@@ -1090,6 +1092,96 @@ def validate_ui_test(content: str) -> ValidationResult:
                             last_validated=datetime.now().isoformat())
 
 
+def process_api_yaml(content: str) -> str:
+    """
+    Process API YAML content and convert different formats to the standard format.
+    
+    Handles two main formats:
+    1. Simple format: uses 'tests' array with 'endpoint' field
+    2. Advanced format: uses 'endpoints' array with 'url' field
+    
+    Converts advanced format to simple format for consistency.
+    """
+    try:
+        # Parse YAML
+        data = yaml.safe_load(content)
+        
+        if not isinstance(data, dict):
+            return content  # Return as-is if not a dict
+        
+        # Check if this is the advanced format (has 'endpoints' instead of 'tests')
+        if 'endpoints' in data and 'tests' not in data:
+            logger.info("Converting advanced YAML format to simple format")
+            
+            # Convert endpoints to tests
+            tests = []
+            for endpoint in data['endpoints']:
+                test = {}
+                
+                # Required fields mapping
+                if 'name' in endpoint:
+                    test['name'] = endpoint['name']
+                if 'method' in endpoint:
+                    test['method'] = endpoint['method']
+                
+                # Map 'url' to 'endpoint'
+                if 'url' in endpoint:
+                    test['endpoint'] = endpoint['url']
+                elif 'endpoint' in endpoint:
+                    test['endpoint'] = endpoint['endpoint']
+                
+                # Map status codes
+                if 'expected_status' in endpoint:
+                    test['expected_status'] = endpoint['expected_status']
+                
+                # Optional fields that can be passed through directly
+                optional_fields = [
+                    'headers', 'body', 'payload', 'timeout', 'description',
+                    'required_response_fields', 'optional_response_fields', 
+                    'field_types', 'auth_credential'
+                ]
+                for field in optional_fields:
+                    if field in endpoint:
+                        test[field] = endpoint[field]
+                
+                # Map 'payload' to 'body' if body doesn't exist
+                if 'payload' in endpoint and 'body' not in test:
+                    test['body'] = endpoint['payload']
+                
+                tests.append(test)
+            
+            # Create new structure
+            converted_data = {
+                'name': data.get('name', 'API Test'),
+                'base_url': data.get('base_url', ''),
+                'tests': tests
+            }
+            
+            # Add optional global fields if they exist
+            if 'description' in data:
+                converted_data['description'] = data['description']
+            if 'global_headers' in data:
+                converted_data['global_headers'] = data['global_headers']
+            if 'global_auth' in data:
+                converted_data['global_auth'] = data['global_auth']
+            
+            # Convert back to YAML
+            converted_yaml = yaml.dump(converted_data, default_flow_style=False, sort_keys=False)
+            logger.info("Successfully converted advanced YAML format to simple format")
+            return converted_yaml
+        
+        else:
+            # Already in simple format or unknown format, return as-is
+            return content
+            
+    except yaml.YAMLError as e:
+        logger.warning(f"Failed to parse YAML for conversion: {e}")
+        return content  # Return original content if parsing fails
+    except Exception as e:
+        logger.warning(f"Error processing YAML: {e}")
+        return content
+
+
 def validate_api_test(content: str) -> ValidationResult:
     """Validate API test YAML content."""
     errors = []
@@ -1390,7 +1482,7 @@ async def create_test_configuration(
         test_name: str = Form(...),
         test_type: str = Form(...),
         instruction: Optional[str] = Form(None),
-        apis_documentation: Optional[str] = Form(None),
+        apis_documentation: Optional[UploadFile] = File(None),
         file: Optional[UploadFile] = File(None)):
     """
     Create a new test configuration.
@@ -1407,10 +1499,23 @@ async def create_test_configuration(
         # Get content from either form data or uploaded file
         content = None
         if file:
-            # Read content from uploaded file
-            content = (await file.read()).decode('utf-8')
+            # Read content from uploaded file via 'file' parameter
+            raw_content = (await file.read()).decode('utf-8')
+            # Process API YAML content if it's an API test
+            if test_type == "API":
+                content = process_api_yaml(raw_content)
+            else:
+                content = raw_content
+        elif apis_documentation:
+            # Read content from uploaded file via 'apis_documentation' parameter
+            raw_content = (await apis_documentation.read()).decode('utf-8')
+            # Process API YAML content if it's an API test
+            if test_type == "API":
+                content = process_api_yaml(raw_content)
+            else:
+                content = raw_content
         else:
-            # Use form data
+            # Use text form data
             if test_type == "UI":
                 if not instruction:
                     raise HTTPException(
@@ -1418,11 +1523,9 @@ async def create_test_configuration(
                         detail="instruction is required for UI tests")
                 content = instruction
             else:  # API
-                if not apis_documentation:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="apis_documentation is required for API tests")
-                content = apis_documentation
+                raise HTTPException(
+                    status_code=400,
+                    detail="apis_documentation file is required for API tests")
 
         if not content:
             raise HTTPException(status_code=400,
@@ -1975,9 +2078,9 @@ async def run_test(request: dict, background_tasks: BackgroundTasks):
                     status_code=400,
                     detail="username and password are required for UI tests")
 
-            if test_type == "API" and not credentials.get('api_key'):
+            if test_type == "API" and not credentials.get('token'):
                 raise HTTPException(status_code=400,
-                                    detail="api_key is required for API tests")
+                                    detail="token is required for API tests")
 
         # Execute test and get process info
         result = await execute_quantumqa_test(request)
