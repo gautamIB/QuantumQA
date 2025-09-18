@@ -99,6 +99,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files for GIF hosting
+# Create reports directory if it doesn't exist
+ensure_directories()
+
+# Mount the reports directory to serve GIF files
+app.mount("/static/gifs", StaticFiles(directory="reports"), name="gifs")
 
 # Pydantic Models
 class ValidationResult(BaseModel):
@@ -247,7 +253,8 @@ class RunDetail(BaseModel):
     error_summary: Optional[str] = None
     log_file_url: str
     report_file_url: str
-    gif_file_path: Optional[str] = None  # Path to GIF file if available
+    gif_file_path: Optional[str] = None  # Local path to GIF file if available
+    gif_file_url: Optional[str] = None   # HTTP URL to access GIF file
 
 
 class RunReport(BaseModel):
@@ -423,7 +430,7 @@ def parse_log_file_for_steps(
 
 
 def find_gif_file(run_name: str) -> Optional[str]:
-    """Find GIF file for a test run in the reports directory."""
+    """Find GIF file for a test run in the reports directory and return hosting URL."""
     reports_dir = Path("reports")
     if not reports_dir.exists():
         return None
@@ -431,9 +438,27 @@ def find_gif_file(run_name: str) -> Optional[str]:
     # Look for GIF files that contain the run name
     for gif_file in reports_dir.glob("*.gif"):
         if run_name in gif_file.name:
-            return str(gif_file)
+            # Return the hosted URL instead of file path
+            gif_filename = gif_file.name
+            return f"/static/gifs/{gif_filename}"
 
     return None
+
+def find_gif_file_details(run_name: str) -> Tuple[Optional[str], Optional[str]]:
+    """Find GIF file for a test run and return both file path and hosting URL."""
+    reports_dir = Path("reports")
+    if not reports_dir.exists():
+        return None, None
+
+    # Look for GIF files that contain the run name
+    for gif_file in reports_dir.glob("*.gif"):
+        if run_name in gif_file.name:
+            gif_file_path = str(gif_file)
+            gif_filename = gif_file.name
+            gif_file_url = f"/static/gifs/{gif_filename}"
+            return gif_file_path, gif_file_url
+
+    return None, None
 
 def extract_test_name_from_file(test_file: str) -> str:
     """Extract test name from test file path (filename without extension)."""
@@ -2272,8 +2297,8 @@ async def get_run(run_name: str) -> RunDetail:
             skipped_steps = 0  # No way to calculate from legacy logs
             executed_steps = len(steps)
 
-        # Find GIF file if available
-        gif_file_path = find_gif_file(run_name)
+        # Find GIF file if available (both path and URL)
+        gif_file_path, gif_file_url = find_gif_file_details(run_name)
 
         return RunDetail(run_name=run_name,
                          test_file=report_data.get("test_file", "unknown"),
@@ -2293,7 +2318,8 @@ async def get_run(run_name: str) -> RunDetail:
                          error_summary=report_data.get("error"),
                          log_file_url=f"/runs/{run_name}/logs",
                          report_file_url=f"/runs/{run_name}/report",
-                         gif_file_path=gif_file_path)
+                         gif_file_path=gif_file_path,
+                         gif_file_url=gif_file_url)
 
     except HTTPException:
         raise
