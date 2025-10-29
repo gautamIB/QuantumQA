@@ -147,9 +147,22 @@ class VisionChromeEngine:
         if self.connect_to_existing:
             try:
                 print(f"🔗 Attempting to connect to existing Chrome on port {self.debug_port}...")
-                self.browser = await self.playwright.chromium.connect_over_cdp(f"http://localhost:{self.debug_port}")
-                print("✅ Connected to existing Chrome browser!")
-                self._connected_to_existing = True
+                # Use a short timeout for connection attempts (3 seconds)
+                try:
+                    self.browser = await asyncio.wait_for(
+                        self.playwright.chromium.connect_over_cdp(f"http://localhost:{self.debug_port}"),
+                        timeout=3.0
+                    )
+                    print("✅ Connected to existing Chrome browser!")
+                    self._connected_to_existing = True
+                except asyncio.TimeoutError:
+                    raise ConnectionError(f"Connection timeout: No Chrome found on port {self.debug_port}")
+                except Exception as conn_error:
+                    # Re-raise connection errors with more context
+                    error_msg = str(conn_error)
+                    if "ECONNREFUSED" in error_msg or "Connection refused" in error_msg:
+                        raise ConnectionError(f"No Chrome running with remote debugging on port {self.debug_port}")
+                    raise
                 
                 # Find the best existing context to reuse (with authentication/cookies)
                 contexts = self.browser.contexts
@@ -218,8 +231,12 @@ class VisionChromeEngine:
                     self.page = await self.context.new_page()
                     print(f"📄 Created new context and page")
                     
-            except Exception as e:
-                print(f"⚠️ Could not connect to existing Chrome: {e}")
+            except (ConnectionError, Exception) as e:
+                error_msg = str(e)
+                if "ECONNREFUSED" in error_msg or "Connection refused" in error_msg or "No Chrome running" in error_msg:
+                    print(f"ℹ️  No existing Chrome found on port {self.debug_port}")
+                else:
+                    print(f"⚠️ Could not connect to existing Chrome: {error_msg}")
                 print("🚀 Launching new Chrome browser...")
                 self._connected_to_existing = False
                 await self._launch_new_browser(headless, viewport)
@@ -314,24 +331,70 @@ class VisionChromeEngine:
             "viewport": viewport,
             "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
-        if self.enable_caching:
-            # Use persistent context per Playwright guidance
-            self.context = await self.playwright.chromium.launch_persistent_context(
-                user_data_dir=str(self.user_data_dir),
-                channel="chrome",
-                headless=headless,
-                args=chrome_args,
-                **context_options
-            )
-            self.browser = self.context.browser
-        else:
-            # Fallback to regular launch + ephemeral context
-            self.browser = await self.playwright.chromium.launch(
-                channel="chrome",
-                headless=headless,
-                args=chrome_args
-            )
-            self.context = await self.browser.new_context(**context_options)
+        
+        try:
+            if self.enable_caching:
+                # Use persistent context per Playwright guidance
+                self.context = await self.playwright.chromium.launch_persistent_context(
+                    user_data_dir=str(self.user_data_dir),
+                    channel="chrome",
+                    headless=headless,
+                    args=chrome_args,
+                    **context_options
+                )
+                self.browser = self.context.browser
+            else:
+                # Fallback to regular launch + ephemeral context
+                self.browser = await self.playwright.chromium.launch(
+                    channel="chrome",
+                    headless=headless,
+                    args=chrome_args
+                )
+                self.context = await self.browser.new_context(**context_options)
+        except Exception as e:
+            error_msg = str(e)
+            
+            # Check for common permission/browser issues
+            if "Executable doesn't exist" in error_msg or "executable" in error_msg.lower():
+                print("\n❌ Browser executable not found!")
+                print("🔧 Please run: python3 -m playwright install chromium")
+                print("   Or check that Google Chrome is installed")
+                
+                # Try fallback to bundled Chromium without channel="chrome"
+                print("🔄 Attempting fallback to bundled Chromium...")
+                try:
+                    if self.enable_caching:
+                        self.context = await self.playwright.chromium.launch_persistent_context(
+                            user_data_dir=str(self.user_data_dir),
+                            headless=headless,
+                            args=chrome_args,
+                            **context_options
+                        )
+                        self.browser = self.context.browser
+                    else:
+                        self.browser = await self.playwright.chromium.launch(
+                            headless=headless,
+                            args=chrome_args
+                        )
+                        self.context = await self.browser.new_context(**context_options)
+                    print("✅ Successfully launched bundled Chromium")
+                except Exception as fallback_error:
+                    print(f"❌ Fallback also failed: {fallback_error}")
+                    raise
+            elif "permission" in error_msg.lower() or "accessibility" in error_msg.lower():
+                print("\n❌ Browser launch failed due to permissions!")
+                print("🔧 macOS Permission Fix:")
+                print("   1. Go to: System Settings > Privacy & Security > Accessibility")
+                print("   2. Add Terminal.app (or your Python interpreter)")
+                print("   3. Enable Accessibility permissions")
+                raise
+            else:
+                # Generic error - re-raise with context
+                print(f"\n❌ Browser launch failed: {error_msg}")
+                print("🔧 Troubleshooting:")
+                print("   - Run: python3 check_permissions.py")
+                print("   - Check macOS permissions in System Settings")
+                raise
         
         # 🚀 PAGE: Enable cache and optimize loading
         self.page = await self.context.new_page()

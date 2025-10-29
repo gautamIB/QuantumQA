@@ -73,9 +73,22 @@ class ChromeEngine:
         if self.connect_to_existing:
             try:
                 print(f"🔗 Attempting to connect to existing Chrome on port {self.debug_port}...")
-                self.browser = await self.playwright.chromium.connect_over_cdp(f"http://localhost:{self.debug_port}")
-                print("✅ Connected to existing Chrome browser!")
-                self._connected_to_existing = True
+                # Use a short timeout for connection attempts (3 seconds)
+                try:
+                    self.browser = await asyncio.wait_for(
+                        self.playwright.chromium.connect_over_cdp(f"http://localhost:{self.debug_port}"),
+                        timeout=3.0
+                    )
+                    print("✅ Connected to existing Chrome browser!")
+                    self._connected_to_existing = True
+                except asyncio.TimeoutError:
+                    raise ConnectionError(f"Connection timeout: No Chrome found on port {self.debug_port}")
+                except Exception as conn_error:
+                    # Re-raise connection errors with more context
+                    error_msg = str(conn_error)
+                    if "ECONNREFUSED" in error_msg or "Connection refused" in error_msg:
+                        raise ConnectionError(f"No Chrome running with remote debugging on port {self.debug_port}")
+                    raise
                 
                 # Find the best existing context to reuse (with authentication/cookies)
                 contexts = self.browser.contexts
@@ -126,8 +139,12 @@ class ChromeEngine:
                     self.page = await self.context.new_page()
                     print(f"📄 Created new context and page")
                     
-            except Exception as e:
-                print(f"⚠️ Could not connect to existing Chrome: {e}")
+            except (ConnectionError, Exception) as e:
+                error_msg = str(e)
+                if "ECONNREFUSED" in error_msg or "Connection refused" in error_msg or "No Chrome running" in error_msg:
+                    print(f"ℹ️  No existing Chrome found on port {self.debug_port}")
+                else:
+                    print(f"⚠️ Could not connect to existing Chrome: {error_msg}")
                 print("🚀 Launching new Chrome browser...")
                 self._connected_to_existing = False
                 await self._launch_new_browser(headless, viewport)
@@ -143,17 +160,58 @@ class ChromeEngine:
     
     async def _launch_new_browser(self, headless: bool = False, viewport: Dict[str, int] = None) -> None:
         """Launch a new Chrome browser instance."""
-        self.browser = await self.playwright.chromium.launch(
-            channel="chrome",  # Use installed Chrome instead of bundled Chromium
-            headless=headless,
-            args=[
-                "--no-first-run",
-                "--disable-blink-features=AutomationControlled",
-                "--disable-web-security",  # For testing across domains
-                "--disable-features=VizDisplayCompositor",
-                f"--remote-debugging-port={self.debug_port}"  # Enable remote debugging for future connections
-            ]
-        )
+        try:
+            self.browser = await self.playwright.chromium.launch(
+                channel="chrome",  # Use installed Chrome instead of bundled Chromium
+                headless=headless,
+                args=[
+                    "--no-first-run",
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-web-security",  # For testing across domains
+                    "--disable-features=VizDisplayCompositor",
+                    f"--remote-debugging-port={self.debug_port}"  # Enable remote debugging for future connections
+                ]
+            )
+        except Exception as e:
+            error_msg = str(e)
+            
+            # Check for common permission/browser issues
+            if "Executable doesn't exist" in error_msg or "executable" in error_msg.lower():
+                print("\n❌ Browser executable not found!")
+                print("🔧 Please run: python3 -m playwright install chromium")
+                print("   Or check that Google Chrome is installed")
+                
+                # Try fallback to bundled Chromium
+                print("🔄 Attempting fallback to bundled Chromium...")
+                try:
+                    self.browser = await self.playwright.chromium.launch(
+                        headless=headless,
+                        args=[
+                            "--no-first-run",
+                            "--disable-blink-features=AutomationControlled",
+                            "--disable-web-security",
+                            "--disable-features=VizDisplayCompositor",
+                            f"--remote-debugging-port={self.debug_port}"
+                        ]
+                    )
+                    print("✅ Successfully launched bundled Chromium")
+                except Exception as fallback_error:
+                    print(f"❌ Fallback also failed: {fallback_error}")
+                    raise
+            elif "permission" in error_msg.lower() or "accessibility" in error_msg.lower():
+                print("\n❌ Browser launch failed due to permissions!")
+                print("🔧 macOS Permission Fix:")
+                print("   1. Go to: System Settings > Privacy & Security > Accessibility")
+                print("   2. Add Terminal.app (or your Python interpreter)")
+                print("   3. Enable Accessibility permissions")
+                raise
+            else:
+                # Generic error - re-raise with context
+                print(f"\n❌ Browser launch failed: {error_msg}")
+                print("🔧 Troubleshooting:")
+                print("   - Run: python3 check_permissions.py")
+                print("   - Check macOS permissions in System Settings")
+                raise
         
         # Create context with sensible defaults
         viewport = viewport or {'width': 1400, 'height': 900}

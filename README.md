@@ -1,379 +1,321 @@
-# QuantumQA - Lightweight Agentic UI Testing Framework
+# QuantumQA - AI-Powered UI and API Testing Framework
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![PyPI](https://img.shields.io/badge/PyPI-quantumqa-blue.svg)](https://pypi.org/project/quantumqa/)
+QuantumQA is a Python-based testing framework that uses AI vision and natural language processing to execute UI tests from plain text instructions. It also supports API testing with YAML/JSON test files.
 
-## Overview
+## Features
 
-QuantumQA is a revolutionary lightweight testing framework that uses AI agents to execute UI tests from natural language instructions. No databases, no servers, no complex setup - just install with pip and start testing with AI-powered vision.
+- **🌐 UI Testing**: Execute tests from natural language instructions
+- **🔌 API Testing**: Test REST APIs with YAML/JSON test definitions
+- **👁️ Vision-Powered**: Uses OpenAI GPT-4V for intelligent element detection
+- **🚀 Browser Automation**: Powered by Playwright
+- **🔄 Browser Reuse**: Connect to existing Chrome instances for faster testing
+- **📸 Visual Reports**: Generate GIFs and screenshots automatically
+- **🔐 Credential Management**: Secure credential handling with encryption
 
-**🎯 Zero Infrastructure Required** • **🤖 Multi-Agent Intelligence** • **👁️ Vision-Powered Element Detection**
+## Installation
 
-## Key Features
+### Prerequisites
 
-🎭 **Multi-Agent System**: Specialized AI agents collaborate to understand, plan, and execute tests
-🔍 **Vision-First Testing**: Uses GPT-4V/Claude-3.5 to identify UI elements without selectors
-📝 **Natural Language Tests**: Write tests in plain English - no code required
-⚡ **Zero Setup**: Single `pip install` command gets you testing immediately
-🛡️ **Self-Healing**: Automatically adapts to UI changes and recovers from failures
-🚀 **Multi-Browser**: Chrome, Firefox, Safari, Edge via Playwright
-💰 **Cost-Optimized**: Intelligent caching reduces LLM API costs by 50%+
-📊 **Rich Output**: Beautiful terminal progress and detailed test results
+- Python 3.9 or higher
+- Google Chrome or Chromium browser
+- OpenAI API key
 
-## Agent Architecture
+### Setup Steps
 
-QuantumQA uses multiple specialized AI agents that collaborate to execute your tests:
+1. **Clone or download the repository**
 
-```
-🎭 Orchestrator Agent → Coordinates the entire test execution
-    ↓
-🔍 Decomposer Agent → Breaks instructions into atomic steps  
-    ↓
-📋 Planner Agent → Creates optimized execution plan
-    ↓  
-🎯 Critique Agent → Validates plan before execution
-    ↓
-🧭 Navigator Agent → Handles page navigation
-    ↓
-👁️ Element Detector Agent → Finds UI elements using vision
-    ↓
-⚡ Action Executor Agent → Performs interactions
-    ↓
-✅ Validator Agent → Verifies outcomes
-```
-
-### Minimal Technology Stack
-
-- **Core Framework**: Python 3.11+, Pydantic, Click
-- **Browser Automation**: Playwright
-- **AI/Vision**: OpenAI GPT-4V, Anthropic Claude-3.5
-- **Image Processing**: Pillow (basic), OpenCV (advanced)
-- **UI**: Rich terminal output
-- **Dependencies**: Only 7 core packages, ~50MB install
-
-## Quick Start
-
-### Installation (30 seconds)
-
+2. **Install dependencies**:
 ```bash
-# Install QuantumQA
-pip install quantumqa
+pip install -r requirements.txt
+```
 
-# Verify installation
-quantumqa --version
+3. **Install Playwright browsers**:
+```bash
+python3 -m playwright install chromium
+```
 
-# Set up your OpenAI API key
+4. **Set up credentials** (optional):
+```bash
+# Copy the template
+cp quantumqa/config/credentials.template.yaml quantumqa/config/credentials.yaml
+
+# Edit credentials.yaml with your API keys and test credentials
+```
+
+5. **Set OpenAI API key** (required for vision-based testing):
+```bash
 export OPENAI_API_KEY="sk-your-api-key-here"
 ```
 
-That's it! No databases, no servers, no configuration files needed.
+## Quick Start
 
-### Your First Test (2 minutes)
+### UI Testing
 
-#### 1. Create a test file
+1. **Create a test file** (e.g., `my_test.txt`):
+```
+Navigate to https://www.google.com
+Click the search box
+Type 'QuantumQA testing' in the search box
+Click the Google Search button
+Wait 3 seconds
+Verify that the page shows search results
+```
+
+2. **Run the test**:
+```bash
+# Using the main runner (recommended)
+python quantumqa_runner.py examples/e2e_google_search.txt --visible
+
+# Or use the vision-enhanced runner
+python run_vision_test.py examples/e2e_google_search.txt --visible
+
+# Or use the generic Chrome engine
+python scripts/run_generic_test.py examples/e2e_google_search.txt --visible
+```
+
+### API Testing
+
+1. **Create an API test file** (e.g., `api_test.yaml`):
+```yaml
+name: Sample API Test
+base_url: https://jsonplaceholder.typicode.com
+tests:
+  - name: Get all posts
+    endpoint: /posts
+    method: GET
+    expected_status: 200
+    validations:
+      - field: $[0].userId
+        expected_type: integer
+```
+
+2. **Run the API test**:
+```bash
+python quantumqa_runner.py examples/api/jsonplaceholder_tests.yaml
+```
+
+## Available Runners
+
+The framework provides multiple ways to run tests:
+
+### 1. Main Runner (`quantumqa_runner.py`)
+**Recommended** - Auto-detects UI vs API tests and uses appropriate engine.
 
 ```bash
-# Create test_login.txt
-echo "Navigate to https://demo.example.com
+# UI test (auto-detected from .txt file)
+python quantumqa_runner.py examples/e2e_google_search.txt --visible
+
+# API test (auto-detected from .yaml file)
+python quantumqa_runner.py examples/api/chatbot_tests.yaml
+
+# Force new browser (don't connect to existing)
+python quantumqa_runner.py examples/my_test.txt --visible --new-browser
+
+# Use custom credentials file
+python quantumqa_runner.py examples/test.txt --credentials path/to/credentials.yaml
+```
+
+### 2. Vision Test Runner (`run_vision_test.py`)
+Vision-enhanced UI testing with AI element detection.
+
+```bash
+python run_vision_test.py examples/conversation_with_login.txt --visible
+
+# Connect to existing Chrome (faster, preserves auth)
+python run_vision_test.py examples/test.txt --connect-existing --visible
+
+# Launch fresh browser
+python run_vision_test.py examples/test.txt --new-browser --visible
+```
+
+### 3. Generic Chrome Runner (`scripts/run_generic_test.py`)
+Basic Chrome engine without vision features (faster, lower cost).
+
+```bash
+python scripts/run_generic_test.py examples/e2e_form_test.txt --visible
+```
+
+### 4. Chrome Test Runner (`scripts/run_chrome_test.py`)
+Simple Chrome test runner with profile support.
+
+```bash
+python scripts/run_chrome_test.py examples/my_test.txt --visible
+```
+
+## Common Options
+
+Most runners support these options:
+
+- `--visible` / `-v`: Run browser in visible mode (default: headless)
+- `--credentials` / `--creds`: Path to credentials file
+- `--new-browser`: Force launch new browser (don't connect to existing)
+- `--connect-existing`: Connect to existing Chrome on debug port (default: 9222)
+- `--debug-port`: Chrome remote debugging port (default: 9222)
+- `--run-name`: Custom name for GIF/report files
+- `--performance-measurement`: Enable performance measurement mode
+- `--disable-caching`: Disable browser caching
+- `--disable-performance`: Disable performance optimizations
+
+## Browser Reuse (Faster Testing)
+
+To speed up tests and preserve authentication:
+
+1. **Start Chrome with debugging** (Terminal 1):
+```bash
+python start_chrome_debug.py
+```
+
+2. **Run tests** (Terminal 2):
+```bash
+python quantumqa_runner.py examples/test.txt --visible
+```
+
+Tests will automatically connect to the existing Chrome instance, preserving cookies and login sessions.
+
+See [BROWSER_REUSE_GUIDE.md](BROWSER_REUSE_GUIDE.md) for more details.
+
+## Test File Examples
+
+### UI Test (`.txt` file)
+```
+Navigate to https://example.com
 Click the Login button
-Enter 'demo@example.com' in the email field
-Enter 'password123' in the password field  
+Enter 'user@example.com' in the email field
+Enter 'password123' in the password field
 Click the Submit button
-Verify the dashboard page loads" > test_login.txt
+Verify that the dashboard page loads
 ```
 
-#### 2. Run the test
-
-```bash
-# Execute your test
-quantumqa run test_login.txt
-
-# Watch the agents work their magic! 
-# ✨ Orchestrator coordinates the execution
-# 🔍 Decomposer breaks down instructions  
-# 📋 Planner creates execution strategy
-# 🎯 Critic validates the plan
-# 🧭 Navigator handles page navigation
-# 👁️ Vision agents find elements
-# ⚡ Executor performs actions
-# ✅ Validator checks outcomes
+### API Test (`.yaml` file)
+```yaml
+name: User API Tests
+base_url: https://api.example.com
+headers:
+  Content-Type: application/json
+tests:
+  - name: Create user
+    endpoint: /users
+    method: POST
+    payload:
+      name: "John Doe"
+      email: "john@example.com"
+    expected_status: 201
+    validations:
+      - field: $.name
+        expected_value: "John Doe"
 ```
 
-#### 3. Using the Python API
+See the `examples/` directory for more examples.
 
-```python
-from quantumqa import QuantumQA
-
-# Initialize the framework
-qa = QuantumQA(llm_provider="openai", browser="chrome")
-
-# Execute test with natural language
-result = qa.run_test([
-    "Navigate to https://example.com",
-    "Click the login button",
-    "Enter credentials and submit",
-    "Verify successful login"
-])
-
-# Get results
-print(f"Test Status: {result.status}")
-print(f"Execution Time: {result.execution_time}s")
-print(f"Cost: ${result.cost_estimate}")
-
-# Save artifacts (screenshots, logs)
-result.save_artifacts("./test_results/")
-```
-
-## Real-World Examples
-
-### E-commerce Purchase Flow
-
-```bash
-# ecommerce_test.txt
-Navigate to https://shop.example.com
-Search for 'wireless headphones' 
-Click on the first product with rating above 4 stars
-Select Black color if available
-Add item to cart
-Proceed to checkout
-Fill in shipping address form
-Select Express Delivery option
-Verify order total is calculated correctly
-```
-
-```bash
-quantumqa run ecommerce_test.txt --browser chrome --save-screenshots
-```
-
-### Form Validation Testing
-
-```bash
-# form_validation.txt  
-Navigate to https://forms.example.com/contact
-Submit the form without filling required fields
-Verify error messages appear for empty fields
-Fill in a valid email address
-Enter phone number in wrong format
-Verify phone validation error appears
-Correct the phone number format
-Submit form successfully
-Verify success message is displayed
-```
-
-```bash
-quantumqa run form_validation.txt --debug --max-cost 0.50
-```
-
-### API Testing with UI Verification
-
-```python
-from quantumqa import QuantumQA
-
-# Test that combines API calls with UI verification
-qa = QuantumQA(llm_provider="openai")
-
-# Custom test with setup and teardown
-result = qa.run_test([
-    "Navigate to https://api-demo.example.com",
-    "Click 'Create New User' button",
-    "Fill in user registration form with test data",
-    "Submit the form",
-    "Verify success message appears",
-    "Navigate to user list page", 
-    "Verify new user appears in the list"
-], config={
-    "timeout": 60,
-    "screenshot_on_failure": True,
-    "cost_limit": 1.00
-})
-
-print(f"Test {'PASSED' if result.success else 'FAILED'}")
-```
-
-## CLI Commands
-
-```bash
-# Basic usage
-quantumqa run test_file.txt                    # Run test from file
-quantumqa run "Navigate to google.com"         # Run inline test
-
-# Configuration options
-quantumqa run test.txt --browser firefox       # Use specific browser
-quantumqa run test.txt --headless false        # Show browser window
-quantumqa run test.txt --timeout 60            # Set timeout
-quantumqa run test.txt --max-cost 0.25         # Limit test cost
-
-# Output and debugging
-quantumqa run test.txt --save-artifacts        # Save screenshots/logs
-quantumqa run test.txt --debug                 # Verbose output
-quantumqa run test.txt --format json           # JSON output
-
-# Validation (without execution)
-quantumqa validate test.txt                    # Check test syntax
-quantumqa plan test.txt                        # Show execution plan
-
-# Utilities
-quantumqa --version                             # Show version
-quantumqa examples                              # List example tests
-quantumqa cost-estimate test.txt               # Estimate test cost
-```
-
-## Configuration
-
-### Environment Variables (Optional)
-
-```bash
-# LLM Provider Setup (choose one)
-export OPENAI_API_KEY="sk-..."                 # Primary choice
-export ANTHROPIC_API_KEY="ant-..."             # Alternative
-
-# Optional Configuration  
-export QUANTUMQA_BROWSER="chrome"              # Default browser
-export QUANTUMQA_HEADLESS="true"               # Run headless
-export QUANTUMQA_TIMEOUT="30"                  # Default timeout
-export QUANTUMQA_MAX_COST="0.50"              # Cost limit per test
-```
-
-### Configuration File (Optional)
-
-```json
-// ~/.quantumqa/config.json
-{
-    "llm_provider": "openai",
-    "browser": "chrome", 
-    "headless": true,
-    "timeout": 30,
-    "screenshot_on_failure": true,
-    "max_cost_per_test": 0.50,
-    "artifacts_dir": "./quantumqa_artifacts"
-}
-```
-
-## Development
-
-### Simple Project Structure
+## Project Structure
 
 ```
-quantumqa/
-├── quantumqa/
-│   ├── agents/              # All AI agents
-│   │   ├── orchestrator.py
-│   │   ├── decomposer.py
-│   │   ├── planner.py
-│   │   └── executor.py
-│   ├── core/               # Core framework logic
-│   │   ├── browser.py
-│   │   ├── llm.py
-│   │   └── messaging.py
-│   ├── cli/                # Command line interface
-│   └── utils/              # Utilities
-├── tests/                  # Framework tests
-├── examples/               # Example tests
-└── pyproject.toml          # Modern Python packaging
-```
-
-### Contributing
-
-```bash
-# Fork and clone the repository
-git clone https://github.com/your-fork/quantumqa.git
-cd quantumqa
-
-# Install in development mode  
-pip install -e .[dev]
-
-# Run tests
-pytest tests/
-
-# Run examples
-quantumqa run examples/login_test.txt
-
-# Submit a pull request
+QuantumQA/
+├── quantumqa/              # Main framework code
+│   ├── agents/            # AI agent implementations
+│   ├── api/               # API testing engine
+│   ├── engines/           # Browser engines (Chrome, Vision)
+│   ├── executors/         # Action executors
+│   ├── finders/           # Element finders
+│   ├── parsers/           # Instruction parsers
+│   ├── security/          # Credential management
+│   └── config/            # Configuration files
+├── examples/              # Example test files
+│   ├── api/               # API test examples
+│   └── legacy_test/       # Legacy UI test examples
+├── scripts/               # Utility scripts
+├── docs/                  # Documentation
+├── quantumqa_runner.py    # Main test runner
+├── run_vision_test.py     # Vision test runner
+└── requirements.txt       # Python dependencies
 ```
 
 ## Troubleshooting
 
-### Common Issues
+### Chrome Browser Won't Launch
 
-1. **"Element Not Found" Errors**
-   - Try more specific descriptions: "blue Login button" vs "Login button"
-   - Check if page finished loading: add wait instructions
-   - Use `--debug` flag to see what the vision model sees
-
-2. **High API Costs**
-   - Enable caching: `--cache` flag (reduces costs by 50-70%)
-   - Use cost limits: `--max-cost 0.25` 
-   - Optimize descriptions: be concise but specific
-
-3. **Browser Issues**
-   - Try different browser: `--browser firefox`
-   - Run with GUI: `--headless false` to see what's happening
-   - Check browser is installed: `playwright install`
-
-### Debug Mode
-
+1. **Check Playwright browsers are installed**:
 ```bash
-# See detailed execution steps
-quantumqa run test.txt --debug
-
-# Save all artifacts for troubleshooting
-quantumqa run test.txt --save-artifacts --debug
-
-# Estimate cost before running
-quantumqa cost-estimate test.txt
+python3 check_permissions.py
 ```
 
-## Features & Roadmap
-
-### ✅ Current Features (v0.1)
-- Multi-agent test execution
-- Vision-based element detection
-- Natural language instructions
-- Chrome/Firefox/Safari support
-- Intelligent error recovery
-
-### 🔄 Coming Soon (v0.2)
-- Mobile device testing
-- Advanced caching system
-- CI/CD integrations
-- Test result sharing
-
-### 📋 Future (v1.0)
-- AI-powered test generation
-- Community test repository  
-- Advanced analytics
-- Team collaboration features
-
-## Why QuantumQA?
-
-**Traditional Testing:**
-```python
-# Brittle, breaks when UI changes
-driver.find_element(By.CSS_SELECTOR, "#login-btn-2023-new").click()
-driver.find_element(By.XPATH, "//input[@data-testid='email-field']").send_keys("test@example.com")
-```
-
-**QuantumQA Testing:**
+2. **If browsers missing, install them**:
 ```bash
-# Resilient, adapts to changes
-Click the login button
-Enter test@example.com in the email field
+python3 -m playwright install chromium
 ```
 
-**The difference:** QuantumQA uses AI vision to understand your UI like a human would, making tests that survive redesigns, A/B tests, and framework changes.
+3. **Check macOS permissions** (if on macOS):
+   - System Settings > Privacy & Security > Accessibility
+   - Add Terminal.app to allowed apps
+
+See [docs/CHROME_PERMISSIONS_FIX.md](docs/CHROME_PERMISSIONS_FIX.md) for detailed troubleshooting.
+
+### Connection Refused Errors
+
+If you see `ECONNREFUSED` errors when trying to connect to existing Chrome:
+- This is normal if Chrome isn't running with debugging enabled
+- The framework will automatically fallback to launching a new browser
+- Or start Chrome manually: `python start_chrome_debug.py`
+
+### Element Not Found
+
+- Use more specific descriptions: "blue Login button" vs "Login button"
+- Add wait steps: "Wait 2 seconds" before interacting
+- Run with `--visible` to see what's happening
+- Check if page has finished loading
+
+### API Key Issues
+
+Ensure your OpenAI API key is set:
+```bash
+export OPENAI_API_KEY="sk-your-key-here"
+```
+
+Or pass it in credentials file:
+```yaml
+api_keys:
+  openai: "sk-your-key-here"
+```
+
+## Documentation
+
+- [API Documentation](API_DOCUMENTATION.md) - Complete API reference
+- [API Quick Start](API_QUICK_START.md) - API testing guide
+- [Browser Reuse Guide](BROWSER_REUSE_GUIDE.md) - Reusing Chrome instances
+- [Architecture](docs/ARCHITECTURE.md) - Framework architecture
+- [Chrome Permissions Fix](docs/CHROME_PERMISSIONS_FIX.md) - Browser launch troubleshooting
+
+## Requirements
+
+See `requirements.txt` for complete list. Key dependencies:
+- `playwright>=1.40.0` - Browser automation
+- `openai>=1.3.8` - AI/Vision API
+- `pydantic>=2.5.0` - Data validation
+- `rich>=13.7.0` - Terminal UI
+- `PyYAML>=5.4.1` - Configuration parsing
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+See LICENSE file for details.
 
-## Community
+## Contributing
 
-- 🐙 **GitHub**: [github.com/quantumqa/quantumqa](https://github.com/quantumqa/quantumqa)
-- 💬 **Discord**: Join our community for help and discussions  
-- 🐦 **Twitter**: [@quantumqa](https://twitter.com/quantumqa) for updates
-- 📧 **Email**: hello@quantumqa.com for enterprise inquiries
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## Support
+
+For issues and questions:
+- Check the [Troubleshooting](#troubleshooting) section
+- Review the documentation in `docs/`
+- Check example tests in `examples/`
 
 ---
 
-**🚀 Ready to revolutionize your UI testing? `pip install quantumqa` and start testing with AI!**
+**Ready to start testing?** Create a `.txt` file with your test steps and run:
+```bash
+python quantumqa_runner.py your_test.txt --visible
+```
